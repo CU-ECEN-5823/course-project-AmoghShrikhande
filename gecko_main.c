@@ -183,7 +183,7 @@ void set_device_name(bd_addr *pAddr)
 #if DEVICE_IS_ONOFF_PUBLISHER
   sprintf(name, "5823PUB %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
 #else
-  sprintf(name, "5823PUB %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
+  sprintf(name, "5823SUB %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
 #endif
 
   // write device name to the GATT database
@@ -256,15 +256,15 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #else
     		mesh_lib_init(malloc,free,9);
     		init_models();
-    		onoff_update_and_publish(0);
+    		onoff_update_and_publish(0,0);
     		gecko_cmd_mesh_generic_server_init();
 #endif
 
     		LOG_INFO("node is provisioned");
-    		displayPrintf(DISPLAY_ROW_CONNECTION, "Provisioned");
+    		displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
     	} else {
     		LOG_INFO("node is unprovisioned");
-    		displayPrintf(DISPLAY_ROW_CONNECTION, "Unprovisioned");
+    		displayPrintf(DISPLAY_ROW_ACTION, "Unprovisioned");
     		gecko_cmd_mesh_node_start_unprov_beaconing(0x3);   // enable ADV and GATT provisioning bearer
     	}
     	break;
@@ -282,12 +282,12 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #else
     		mesh_lib_init(malloc,free,9);
     		init_models();
-    		onoff_update_and_publish(0);
+    		onoff_update_and_publish(0,0);
     		gecko_cmd_mesh_generic_server_init();
 #endif
 
     		LOG_INFO("node is provisioned");
-    		displayPrintf(DISPLAY_ROW_CONNECTION, "Provisioned");
+    		displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
     	break;
 
     case gecko_evt_mesh_node_provisioning_failed_id:
@@ -295,6 +295,14 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	displayPrintf(DISPLAY_ROW_ACTION, "Provisioning Failed");
     	/* start a one-shot timer that will trigger soft reset after small delay of 2 seconds*/
     	gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_RESTART, 1);
+    	break;
+
+    case gecko_evt_mesh_generic_server_state_changed_id:
+    	mesh_lib_generic_server_event_handler(evt);
+    	break;
+
+    case gecko_evt_mesh_generic_server_client_request_id:
+    	mesh_lib_generic_server_event_handler(evt);
     	break;
 
     case gecko_evt_hardware_soft_timer_id:
@@ -338,21 +346,23 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		{
 			struct mesh_generic_request req;
 			uint16_t resp;
+			uint8_t transition = 0;
+			uint8_t delay = 0;
 			req.kind = mesh_generic_request_on_off;
 			trid++;
 
 			if(GPIO_PinInGet(gpioPortF,6) == 1)
 			{
-				displayPrintf(DISPLAY_ROW_ACTION, "Released");
+//				displayPrintf(DISPLAY_ROW_ACTION, "Released");
 				LOG_INFO("released");
 			}
 			else if(GPIO_PinInGet(gpioPortF,6) == 0)
 			{
-				displayPrintf(DISPLAY_ROW_ACTION, "Pressed");
+//				displayPrintf(DISPLAY_ROW_ACTION, "Pressed");
 				LOG_INFO("pressed");
 			}
 
-			resp = mesh_lib_generic_client_publish(MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID, 0, trid, &req, 0, 0, 0);
+			resp = mesh_lib_generic_client_publish(MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID, 0, trid, &req, transition, delay, 0);
 
 			if (resp) {
 				LOG_INFO("publish fail");
@@ -386,4 +396,75 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     default:
       break;
   }
+}
+
+static void init_models(void)
+{
+  mesh_lib_generic_server_register_handler(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
+                                           0,
+                                           onoff_request,
+                                           onoff_change);
+}
+
+static errorcode_t onoff_update(uint16_t element_index, uint32_t remaining_ms)
+{
+  struct mesh_generic_state current, target;
+
+  return mesh_lib_generic_server_update(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
+                                        element_index,
+                                        &current,
+                                        &target,
+                                        remaining_ms);
+}
+
+static errorcode_t onoff_update_and_publish(uint16_t element_index,
+                                            uint32_t remaining_ms)
+{
+  errorcode_t e;
+
+  e = onoff_update(element_index, remaining_ms);
+  if (e == bg_err_success) {
+    e = mesh_lib_generic_server_publish(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
+                                        element_index,
+                                        mesh_generic_state_on_off);
+  }
+
+  return e;
+}
+
+static void onoff_request(uint16_t model_id,
+                          uint16_t element_index,
+                          uint16_t client_addr,
+                          uint16_t server_addr,
+                          uint16_t appkey_index,
+                          const struct mesh_generic_request *request,
+                          uint32_t transition_ms,
+                          uint16_t delay_ms,
+                          uint8_t request_flags)
+{
+
+	LOG_INFO("in onoff request function");
+	LOG_INFO("button state = %d", request->on_off);
+
+	uint16_t button_state = request->on_off;
+	if(button_state == MESH_GENERIC_ON_OFF_STATE_ON)
+	{
+		displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
+	}
+
+	else if(button_state == MESH_GENERIC_ON_OFF_STATE_OFF)
+	{
+		displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
+	}
+
+  onoff_update_and_publish(element_index, 0);
+}
+
+static void onoff_change(uint16_t model_id,
+                         uint16_t element_index,
+                         const struct mesh_generic_state *current,
+                         const struct mesh_generic_state *target,
+                         uint32_t remaining_ms)
+{
+
 }
