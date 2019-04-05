@@ -354,11 +354,13 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			if(GPIO_PinInGet(gpioPortF,6) == 1)
 			{
 //				displayPrintf(DISPLAY_ROW_ACTION, "Released");
+				req.on_off = MESH_GENERIC_ON_OFF_STATE_OFF;
 				LOG_INFO("released");
 			}
 			else if(GPIO_PinInGet(gpioPortF,6) == 0)
 			{
 //				displayPrintf(DISPLAY_ROW_ACTION, "Pressed");
+				req.on_off = MESH_GENERIC_ON_OFF_STATE_ON;
 				LOG_INFO("pressed");
 			}
 
