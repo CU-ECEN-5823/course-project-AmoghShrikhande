@@ -46,6 +46,11 @@
 #endif
 #include "src/ble_mesh_device_type.h"
 
+#include "src/scheduler.h"
+#include "src/display.h"
+#include "src/log.h"
+#include "src/gpio.h"
+
 /***********************************************************************************************//**
  * @addtogroup Application
  * @{
@@ -208,6 +213,26 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         gecko_cmd_mesh_node_start_unprov_beaconing(0x3);
       }
       break;
+    case gecko_evt_hardware_soft_timer_id:
+    	switch (evt->data.evt_hardware_soft_timer.handle) {
+    		case DISPLAY_REFRESH:
+    			displayUpdate();
+    			break;
+    		case LOG_REFRESH:
+    			tickCount = tickCount + 10;
+    			break;
+//    		case TIMER_ID_FACTORY_RESET:
+//				// reset the device to finish factory reset
+//				gecko_cmd_system_reset(0);
+//				break;
+//
+//			case TIMER_ID_RESTART:
+//				// restart timer expires, reset the device
+//				gecko_cmd_system_reset(0);
+//				break;
+    	}
+    	break;
+
     case gecko_evt_le_connection_closed_id:
       /* Check if need to boot to dfu mode */
       if (boot_to_dfu) {

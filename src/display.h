@@ -31,8 +31,12 @@
 #define SRC_DISPLAY_H_
 
 #define ECEN5823_INCLUDE_DISPLAY_SUPPORT 1
+#define SCHEDULER_SUPPORTS_DISPLAY_UPDATE_EVENT 1
+#define TIMER_SUPPORTS_1HZ_TIMER_EVENT 1
+#define REFRESH_RATE 32768
 
 #include "glib.h"
+#include "native_gecko.h"
 
 /**
  * Display row definitions, used for writing specific content based on assignment requirements.

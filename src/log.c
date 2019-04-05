@@ -7,7 +7,10 @@
 
 #include "retargetserial.h"
 #include "log.h"
+#include "scheduler.h"
 #include <stdbool.h>
+
+#define LOG_REFRESH_RATE (32768/100)
 
 #if INCLUDE_LOGGING
 /**
@@ -17,7 +20,7 @@
 uint32_t loggerGetTimestamp(void)
 {
 	//return timerGetRunTimeMilliseconds();
-	return 0;
+	return tickCount;
 }
 
 /**
@@ -26,6 +29,8 @@ uint32_t loggerGetTimestamp(void)
  */
 void logInit(void)
 {
+	gecko_cmd_hardware_set_soft_timer(LOG_REFRESH_RATE, LOG_REFRESH, 0);
+
 	RETARGET_SerialInit();
 	/**
 	 * See https://siliconlabs.github.io/Gecko_SDK_Doc/efm32g/html/group__RetargetIo.html#ga9e36c68713259dd181ef349430ba0096

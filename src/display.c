@@ -198,7 +198,8 @@ void displayInit()
 	}
 #if SCHEDULER_SUPPORTS_DISPLAY_UPDATE_EVENT
 #if TIMER_SUPPORTS_1HZ_TIMER_EVENT
-	timerEnable1HzSchedulerEvent(Scheduler_DisplayUpdate);
+//	timerEnable1HzSchedulerEvent(Scheduler_DisplayUpdate);
+	gecko_cmd_hardware_set_soft_timer(REFRESH_RATE, DISPLAY_REFRESH, 0);
 #else
 #warning "Timer does not support scheduling 1Hz event.  Please implement for full display support"
 #endif
