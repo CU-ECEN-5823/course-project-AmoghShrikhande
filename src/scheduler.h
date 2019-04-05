@@ -9,6 +9,9 @@
 #define SRC_SCHEDULER_H_
 
 #include "native_gecko.h"
+#include "mesh_generic_model_capi_types.h"
+#include "gpio.h"
+#include "mesh_lib.h"
 
 // soft timer flags
 #define DISPLAY_REFRESH 0x05
@@ -20,5 +23,9 @@
 #define PUSHBUTTON_FLAG 0x13
 
 uint32_t tickCount;
+uint8_t trid;
+
+//function declarations
+void set_device_name(bd_addr *pAddr);
 
 #endif /* SRC_SCHEDULER_H_ */

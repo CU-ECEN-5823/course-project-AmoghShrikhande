@@ -174,6 +174,29 @@ void gecko_bgapi_classes_init_client_lpn(void)
 	//gecko_bgapi_class_mesh_friend_init();
 
 }
+
+void set_device_name(bd_addr *pAddr)
+{
+  char name[20];
+  uint16 res;
+
+#if DEVICE_IS_ONOFF_PUBLISHER
+  sprintf(name, "5823PUB %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
+#else
+  sprintf(name, "5823PUB %02x:%02x", pAddr->addr[1], pAddr->addr[0]);
+#endif
+
+  // write device name to the GATT database
+  res = gecko_cmd_gatt_server_write_attribute_value(gattdb_device_name, 0, strlen(name), (uint8 *)name)->result;
+  if (res) {
+    LOG_INFO("gecko_cmd_gatt_server_write_attribute_value() failed, code %x", res);
+  }
+
+  displayPrintf(DISPLAY_ROW_NAME, "%s", name);
+  displayPrintf(DISPLAY_ROW_BTADDR, "%x:%x:%x:%x:%x:%x", pAddr->addr[0], pAddr->addr[1], pAddr->addr[2], pAddr->addr[3], pAddr->addr[4], pAddr->addr[5]);
+  LOG_INFO("device name set");
+}
+
 void gecko_main_init()
 {
   // Initialize device
@@ -182,6 +205,9 @@ void gecko_main_init()
   initBoard();
   // Initialize application
   initApp();
+
+  displayInit();
+  gpioInit();
 
   // Minimize advertisement latency by allowing the advertiser to always
   // interrupt the scanner.
@@ -204,15 +230,73 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 {
   switch (evt_id) {
     case gecko_evt_system_boot_id:
-      // Initialize Mesh stack in Node operation mode, wait for initialized event
-      gecko_cmd_mesh_node_init();
-      break;
+    	if (GPIO_PinInGet(gpioPortF, 6) == 0 || GPIO_PinInGet(gpioPortF, 7) == 0) {
+    		gecko_cmd_flash_ps_erase_all();
+    		gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_FACTORY_RESET, 1);
+    		displayPrintf(DISPLAY_ROW_CONNECTION, "Factory Reset");
+    		LOG_INFO("factory reset");
+    	} else {
+    		LOG_INFO("boot done");
+    		struct gecko_msg_system_get_bt_address_rsp_t *pAddr = gecko_cmd_system_get_bt_address();
+    		set_device_name(&pAddr->address);
+    		gecko_cmd_mesh_node_init();
+		}
+    	break;
+
     case gecko_evt_mesh_node_initialized_id:
-      if (!evt->data.evt_mesh_node_initialized.provisioned) {
-        // The Node is now initialized, start unprovisioned Beaconing using PB-ADV and PB-GATT Bearers
-        gecko_cmd_mesh_node_start_unprov_beaconing(0x3);
-      }
-      break;
+    	LOG_INFO("in mesh node initialized");
+
+    	struct gecko_msg_mesh_node_initialized_evt_t *pData = (struct gecko_msg_mesh_node_initialized_evt_t *)&(evt->data);
+
+    	if (pData->provisioned) {
+#if DEVICE_IS_ONOFF_PUBLISHER
+    		mesh_lib_init(malloc,free,8);
+    		gecko_cmd_mesh_generic_client_init();
+    		NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+#else
+    		mesh_lib_init(malloc,free,9);
+    		init_models();
+    		onoff_update_and_publish(0);
+    		gecko_cmd_mesh_generic_server_init();
+#endif
+
+    		LOG_INFO("node is provisioned");
+    		displayPrintf(DISPLAY_ROW_CONNECTION, "Provisioned");
+    	} else {
+    		LOG_INFO("node is unprovisioned");
+    		displayPrintf(DISPLAY_ROW_CONNECTION, "Unprovisioned");
+    		gecko_cmd_mesh_node_start_unprov_beaconing(0x3);   // enable ADV and GATT provisioning bearer
+    	}
+    	break;
+
+    case gecko_evt_mesh_node_provisioning_started_id:
+    	displayPrintf(DISPLAY_ROW_ACTION, "Provisioning");
+    	LOG_INFO("provisioning started");
+    	break;
+
+    case gecko_evt_mesh_node_provisioned_id:
+#if DEVICE_IS_ONOFF_PUBLISHER
+    		mesh_lib_init(malloc,free,8);
+    		gecko_cmd_mesh_generic_client_init();
+    		NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+#else
+    		mesh_lib_init(malloc,free,9);
+    		init_models();
+    		onoff_update_and_publish(0);
+    		gecko_cmd_mesh_generic_server_init();
+#endif
+
+    		LOG_INFO("node is provisioned");
+    		displayPrintf(DISPLAY_ROW_CONNECTION, "Provisioned");
+    	break;
+
+    case gecko_evt_mesh_node_provisioning_failed_id:
+    	LOG_INFO("provisioning failed, code %x", evt->data.evt_mesh_node_provisioning_failed.result);
+    	displayPrintf(DISPLAY_ROW_ACTION, "Provisioning Failed");
+    	/* start a one-shot timer that will trigger soft reset after small delay of 2 seconds*/
+    	gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_RESTART, 1);
+    	break;
+
     case gecko_evt_hardware_soft_timer_id:
     	switch (evt->data.evt_hardware_soft_timer.handle) {
     		case DISPLAY_REFRESH:
@@ -221,17 +305,22 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     		case LOG_REFRESH:
     			tickCount = tickCount + 10;
     			break;
-//    		case TIMER_ID_FACTORY_RESET:
-//				// reset the device to finish factory reset
-//				gecko_cmd_system_reset(0);
-//				break;
-//
-//			case TIMER_ID_RESTART:
-//				// restart timer expires, reset the device
-//				gecko_cmd_system_reset(0);
-//				break;
+    		case TIMER_ID_FACTORY_RESET:
+				// reset the device to finish factory reset
+				gecko_cmd_system_reset(0);
+				break;
+
+			case TIMER_ID_RESTART:
+				// restart timer expires, reset the device
+				gecko_cmd_system_reset(0);
+				break;
     	}
     	break;
+
+	case gecko_evt_le_connection_opened_id:
+		LOG_INFO("in connection opened id");
+		displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
+		break;
 
     case gecko_evt_le_connection_closed_id:
       /* Check if need to boot to dfu mode */
@@ -239,7 +328,47 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         /* Enter to DFU OTA mode */
         gecko_cmd_system_reset(2);
       }
+      LOG_INFO("in connection closed id");
+      displayPrintf(DISPLAY_ROW_CONNECTION, " ");
       break;
+
+	case gecko_evt_system_external_signal_id:
+		LOG_INFO("in external signal id");
+		if ((evt->data.evt_system_external_signal.extsignals & PUSHBUTTON_FLAG) != 0)
+		{
+			struct mesh_generic_request req;
+			uint16_t resp;
+			req.kind = mesh_generic_request_on_off;
+			trid++;
+
+			if(GPIO_PinInGet(gpioPortF,6) == 1)
+			{
+				displayPrintf(DISPLAY_ROW_ACTION, "Released");
+				LOG_INFO("released");
+			}
+			else if(GPIO_PinInGet(gpioPortF,6) == 0)
+			{
+				displayPrintf(DISPLAY_ROW_ACTION, "Pressed");
+				LOG_INFO("pressed");
+			}
+
+			resp = mesh_lib_generic_client_publish(MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID, 0, trid, &req, 0, 0, 0);
+
+			if (resp) {
+				LOG_INFO("publish fail");
+			} else {
+				LOG_INFO("Transaction ID = %u", trid);
+			}
+		}
+		break;
+
+	case gecko_evt_mesh_node_reset_id:
+		LOG_INFO("in mesh node reset id");
+		gecko_cmd_flash_ps_erase_all();
+		// reset mesh node
+		gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_RESTART, 1);
+		break;
+
     case gecko_evt_gatt_server_user_write_request_id:
       if (evt->data.evt_gatt_server_user_write_request.characteristic == gattdb_ota_control) {
         /* Set flag to enter to OTA mode */
