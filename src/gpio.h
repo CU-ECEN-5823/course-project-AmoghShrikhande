@@ -8,7 +8,7 @@
 #ifndef SRC_GPIO_H_
 #define SRC_GPIO_H_
 #include <stdbool.h>
-#include "native_gecko.h"
+#include <native_gecko.h>
 #include "scheduler.h"
 
 //for LCD
