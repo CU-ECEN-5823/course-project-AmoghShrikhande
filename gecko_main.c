@@ -111,6 +111,37 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt);
 void mesh_native_bgapi_init(void);
 bool mesh_bgapi_listener(struct gecko_cmd_packet *evt);
 
+/***************************************************************************//**
+ * Initialize LPN functionality with configuration and friendship establishment.
+ * (code taken from Silicon Labs switch example)
+ ******************************************************************************/
+void lpn_init(void)
+{
+	uint16 res;
+	// Initialize LPN functionality.
+	res = gecko_cmd_mesh_lpn_init()->result;
+	if (res) {
+		LOG_INFO("LPN init failed (0x%x)", res);
+		return;
+	}
+
+	// Configure the lpn with following parameters:
+	// - Minimum friend queue length = 2
+	// - Poll timeout = 5 seconds
+	res = gecko_cmd_mesh_lpn_configure(2, 5 * 1000)->result;
+	if (res) {
+		LOG_INFO("LPN conf failed (0x%x)", res);
+		return;
+	}
+
+	LOG_INFO("trying to find friend...");
+	res = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+
+	if (res != 0) {
+		LOG_INFO("ret.code %x", res);
+	}
+}
+
 /**
  * See light switch app.c file definition
  */
@@ -138,8 +169,8 @@ void gecko_bgapi_classes_init_server_friend(void)
 	//gecko_bgapi_class_mesh_health_client_init();
 	//gecko_bgapi_class_mesh_health_server_init();
 	//gecko_bgapi_class_mesh_test_init();
-	gecko_bgapi_class_mesh_lpn_init();
-	//gecko_bgapi_class_mesh_friend_init();
+	//gecko_bgapi_class_mesh_lpn_init();
+	gecko_bgapi_class_mesh_friend_init();
 }
 
 
@@ -233,7 +264,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	if (GPIO_PinInGet(gpioPortF, 6) == 0 || GPIO_PinInGet(gpioPortF, 7) == 0) {
     		gecko_cmd_flash_ps_erase_all();
     		gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_FACTORY_RESET, 1);
-    		displayPrintf(DISPLAY_ROW_CONNECTION, "Factory Reset");
+    		displayPrintf(DISPLAY_ROW_ACTION, "Factory Reset");
     		LOG_INFO("factory reset");
     	} else {
     		LOG_INFO("boot done");
@@ -252,14 +283,20 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if DEVICE_IS_ONOFF_PUBLISHER
     		mesh_lib_init(malloc,free,8);
     		gecko_cmd_mesh_generic_client_init();
+    		lpn_init();
     		NVIC_EnableIRQ(GPIO_EVEN_IRQn);
 #else
     		mesh_lib_init(malloc,free,9);
     		init_models();
-    		onoff_update_and_publish(0,0);
     		gecko_cmd_mesh_generic_server_init();
+    		//for friend functionality
+    		LOG_INFO("Friend mode initialization");
+    		uint16 res;
+    		res = gecko_cmd_mesh_friend_init()->result;
+    		if (res) {
+    			LOG_INFO("Friend init failed 0x%x", res);
+    		}
 #endif
-
     		LOG_INFO("node is provisioned");
     		displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
     	} else {
@@ -278,14 +315,20 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #if DEVICE_IS_ONOFF_PUBLISHER
     		mesh_lib_init(malloc,free,8);
     		gecko_cmd_mesh_generic_client_init();
+    		lpn_init();
     		NVIC_EnableIRQ(GPIO_EVEN_IRQn);
 #else
     		mesh_lib_init(malloc,free,9);
     		init_models();
-    		onoff_update_and_publish(0,0);
     		gecko_cmd_mesh_generic_server_init();
+    		//for friend functionality
+    		LOG_INFO("Friend mode initialization");
+    		uint16 res;
+    		res = gecko_cmd_mesh_friend_init()->result;
+    		if (res) {
+    			LOG_INFO("Friend init failed 0x%x", res);
+    		}
 #endif
-
     		LOG_INFO("node is provisioned");
     		displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
     	break;
@@ -297,13 +340,18 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_RESTART, 1);
     	break;
 
+
+#if DEVICE_USES_BLE_MESH_SERVER_MODEL
+	// this following case is not being used for now
     case gecko_evt_mesh_generic_server_state_changed_id:
     	mesh_lib_generic_server_event_handler(evt);
     	break;
 
+	// this event is triggered every time server receives some data that it subscribed to
     case gecko_evt_mesh_generic_server_client_request_id:
     	mesh_lib_generic_server_event_handler(evt);
     	break;
+#endif
 
     case gecko_evt_hardware_soft_timer_id:
     	switch (evt->data.evt_hardware_soft_timer.handle) {
@@ -318,16 +366,36 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 				gecko_cmd_system_reset(0);
 				break;
 
-			case TIMER_ID_RESTART:
-				// restart timer expires, reset the device
-				gecko_cmd_system_reset(0);
-				break;
+    		case TIMER_ID_RESTART:
+    			// restart timer expires, reset the device
+    			gecko_cmd_system_reset(0);
+    			break;
+
+			// case to find friend after particular interval
+#if DEVICE_IS_ONOFF_PUBLISHER
+    		case TIMER_ID_FRIEND_FIND:
+    		{
+    			LOG_INFO("trying to find friend...");
+    			uint16_t result;
+    			result = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+    			if (result != 0) {
+    				LOG_INFO("ret.code %x", result);
+    			}
+    		}
+    		break;
+#endif
     	}
     	break;
 
 	case gecko_evt_le_connection_opened_id:
 		LOG_INFO("in connection opened id");
 		displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
+		num_connections++;
+#if DEVICE_IS_ONOFF_PUBLISHER
+		// turn off lpn feature after GATT connection is opened
+		gecko_cmd_mesh_lpn_deinit();
+		displayPrintf(DISPLAY_ROW_LPN, "LPN off");
+#endif
 		break;
 
     case gecko_evt_le_connection_closed_id:
@@ -337,8 +405,38 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
         gecko_cmd_system_reset(2);
       }
       LOG_INFO("in connection closed id");
-      displayPrintf(DISPLAY_ROW_CONNECTION, " ");
+      if (num_connections > 0) {
+    	  if (--num_connections == 0) {
+    		  displayPrintf(DISPLAY_ROW_CONNECTION, " ");
+#if DEVICE_IS_ONOFF_PUBLISHER
+    		  lpn_init();
+#endif
+    	  }
+      }
       break;
+
+#if DEVICE_IS_ONOFF_PUBLISHER
+    case gecko_evt_mesh_lpn_friendship_established_id:
+    	LOG_INFO("friendship established");
+    	displayPrintf(DISPLAY_ROW_LPN, "LPN");
+    	break;
+
+    case gecko_evt_mesh_lpn_friendship_failed_id:
+    	LOG_INFO("friendship failed");
+    	displayPrintf(DISPLAY_ROW_LPN, "no friend");
+    	// try again in 2 seconds
+    	gecko_cmd_hardware_set_soft_timer(2 * 32768, TIMER_ID_FRIEND_FIND, 1);
+    	break;
+
+    case gecko_evt_mesh_lpn_friendship_terminated_id:
+    	LOG_INFO("friendship terminated");
+    	displayPrintf(DISPLAY_ROW_LPN, "friend lost");
+    	if (num_connections == 0) {
+    		// try again in 2 seconds
+    		gecko_cmd_hardware_set_soft_timer(2 * 32768, TIMER_ID_FRIEND_FIND, 1);
+    	}
+    	break;
+#endif
 
 	case gecko_evt_system_external_signal_id:
 		LOG_INFO("in external signal id");
@@ -348,23 +446,23 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			uint16_t resp;
 			uint8_t transition = 0;
 			uint8_t delay = 0;
-			req.kind = mesh_generic_request_on_off;
+			req.kind = mesh_generic_request_pb0_press_release;
 			trid++;
 
 			if(GPIO_PinInGet(gpioPortF,6) == 1)
 			{
 //				displayPrintf(DISPLAY_ROW_ACTION, "Released");
-				req.on_off = MESH_GENERIC_ON_OFF_STATE_OFF;
+				req.pb0_press_release = MESH_GENERIC_PB0_PRESS_RELEASE_STATE_PRESS;
 				LOG_INFO("released");
 			}
 			else if(GPIO_PinInGet(gpioPortF,6) == 0)
 			{
 //				displayPrintf(DISPLAY_ROW_ACTION, "Pressed");
-				req.on_off = MESH_GENERIC_ON_OFF_STATE_ON;
+				req.pb0_press_release = MESH_GENERIC_PB0_PRESS_RELEASE_STATE_RELEASE;
 				LOG_INFO("pressed");
 			}
 
-			resp = mesh_lib_generic_client_publish(MESH_GENERIC_ON_OFF_CLIENT_MODEL_ID, 0, trid, &req, transition, delay, 0);
+			resp = mesh_lib_generic_client_publish(MESH_GENERIC_PB0_PRESS_RELEASE_CLIENT_MODEL_ID, 0, trid, &req, transition, delay, 0);
 
 			if (resp) {
 				LOG_INFO("publish fail");
@@ -402,39 +500,13 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
 static void init_models(void)
 {
-  mesh_lib_generic_server_register_handler(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
-                                           0,
-                                           onoff_request,
-                                           onoff_change);
+	mesh_lib_generic_server_register_handler(MESH_GENERIC_PB0_PRESS_RELEASE_SERVER_MODEL_ID,
+												0,
+												pb0_pressrelease_request,
+												pb0_pressrelease_change);
 }
 
-static errorcode_t onoff_update(uint16_t element_index, uint32_t remaining_ms)
-{
-  struct mesh_generic_state current, target;
-
-  return mesh_lib_generic_server_update(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
-                                        element_index,
-                                        &current,
-                                        &target,
-                                        remaining_ms);
-}
-
-static errorcode_t onoff_update_and_publish(uint16_t element_index,
-                                            uint32_t remaining_ms)
-{
-  errorcode_t e;
-
-  e = onoff_update(element_index, remaining_ms);
-  if (e == bg_err_success) {
-    e = mesh_lib_generic_server_publish(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
-                                        element_index,
-                                        mesh_generic_state_on_off);
-  }
-
-  return e;
-}
-
-static void onoff_request(uint16_t model_id,
+static void pb0_pressrelease_request(uint16_t model_id,
                           uint16_t element_index,
                           uint16_t client_addr,
                           uint16_t server_addr,
@@ -444,29 +516,17 @@ static void onoff_request(uint16_t model_id,
                           uint16_t delay_ms,
                           uint8_t request_flags)
 {
-
-	LOG_INFO("in onoff request function");
-	LOG_INFO("button state = %d", request->on_off);
-
-	uint16_t button_state = request->on_off;
-	if(button_state == MESH_GENERIC_ON_OFF_STATE_ON)
-	{
-		displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
-	}
-
-	else if(button_state == MESH_GENERIC_ON_OFF_STATE_OFF)
-	{
+	if(request->pb0_press_release == MESH_GENERIC_PB0_PRESS_RELEASE_STATE_RELEASE)
 		displayPrintf(DISPLAY_ROW_ACTION, "Button Released");
-	}
-
-  onoff_update_and_publish(element_index, 0);
+	else if(request->pb0_press_release == MESH_GENERIC_PB0_PRESS_RELEASE_STATE_PRESS)
+		displayPrintf(DISPLAY_ROW_ACTION, "Button Pressed");
 }
 
-static void onoff_change(uint16_t model_id,
+static void pb0_pressrelease_change(uint16_t model_id,
                          uint16_t element_index,
                          const struct mesh_generic_state *current,
                          const struct mesh_generic_state *target,
                          uint32_t remaining_ms)
 {
-
+	LOG_INFO("PB0 State Changed");
 }

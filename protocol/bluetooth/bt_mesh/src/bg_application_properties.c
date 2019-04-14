@@ -14,7 +14,7 @@
  *
  ******************************************************************************/
 
-#include <application_properties.h>
+#include <platform/bootloader/api/application_properties.h>
 
 #if defined(__IAR_SYSTEMS_ICC__)
 /* IAR ICC */

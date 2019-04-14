@@ -1,5 +1,5 @@
 #include <stdbool.h>
-#include "native_gecko.h"
+#include <native_gecko.h>
 #include "log.h"
 
 extern void gecko_main_init();
