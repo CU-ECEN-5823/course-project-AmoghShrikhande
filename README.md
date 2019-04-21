@@ -17,4 +17,20 @@ Project Status:
 7. Publish flame sensor data (to be done)
 8. Interface humidity sensor and publish data (to be done)
 
+Models Used: LEVEL MODEL
+
+  EVENT                 DATA
+PB0_STOP_ALERT         (0x01)       
+VIBRATION_ALERT        (0x0A)        
+LIGHT_CONTROL_ON       (0x1B)        
+LIGHT_CONTROL_OFF      (0x2B)        
+GAS_ALERT              (0x0C)        
+FIRE_ALERT             (0x0D)        
+NOISE_ALERT            (0x0E)        
+SHUMIDITY_ALERT        (0x0F) 
+
+
+OnOff model will be implemented later       
+ 
+
 </pre>

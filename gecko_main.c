@@ -501,6 +501,11 @@ static void init_models(void)
 												0,
 												onoff_request,
 												onoff_change);
+
+	mesh_lib_generic_server_register_handler(MESH_GENERIC_LEVEL_SERVER_MODEL_ID,
+												0,
+												level_request,
+												level_change);
 }
 
 static void onoff_request(uint16_t model_id,
@@ -523,7 +528,7 @@ static void onoff_request(uint16_t model_id,
 	}
 	if(request->on_off == 0x01)
 	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "EARTHQUAKE");
+		displayPrintf(DISPLAY_ROW_SENSOR, "TEST");
 		gpioLed1SetOn();
 		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
 	}
@@ -531,6 +536,90 @@ static void onoff_request(uint16_t model_id,
 
 //unused
 static void onoff_change(uint16_t model_id,
+                         uint16_t element_index,
+                         const struct mesh_generic_state *current,
+                         const struct mesh_generic_state *target,
+                         uint32_t remaining_ms)
+{
+	LOG_INFO("PB0 State Changed");
+}
+
+static void level_request(uint16_t model_id,
+                          uint16_t element_index,
+                          uint16_t client_addr,
+                          uint16_t server_addr,
+                          uint16_t appkey_index,
+                          const struct mesh_generic_request *request,
+                          uint32_t transition_ms,
+                          uint16_t delay_ms,
+                          uint8_t request_flags)
+{
+	LOG_INFO("LEVEL request received");
+	LOG_INFO("request.level = %d", request->level);
+
+	// stop alert
+	if(request->level == PB0_STOP_ALERT)
+	{
+		displayPrintf(DISPLAY_ROW_SENSOR, " ");
+		gpioLed1SetOff();
+		GPIO_PinOutClear(ALARM_PORT,ALARM_PIN);
+	}
+
+	// vibration alert
+	if(request->level == VIBRATION_ALERT)
+	{
+		displayPrintf(DISPLAY_ROW_SENSOR, "EARTHQUAKE");
+		gpioLed1SetOn();
+		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
+	}
+
+	// gas alert
+	if(request->level == GAS_ALERT)
+	{
+		displayPrintf(DISPLAY_ROW_SENSOR, "GAS ALERT");
+		gpioLed1SetOn();
+		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
+	}
+
+	// fire alert
+	if(request->level == FIRE_ALERT)
+	{
+		displayPrintf(DISPLAY_ROW_SENSOR, "FIRE ALERT");
+		gpioLed1SetOn();
+		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
+	}
+
+	// noise alert
+	if(request->level == NOISE_ALERT)
+	{
+		displayPrintf(DISPLAY_ROW_SENSOR, "NOISE ALERT");
+		gpioLed1SetOn();
+		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
+	}
+
+	// humidity alert
+	if(request->level == HUMIDITY_ALERT)
+	{
+		displayPrintf(DISPLAY_ROW_SENSOR, "HUMIDITY ALERT");
+		gpioLed1SetOn();
+		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
+	}
+
+	// light off
+	if(request->level == LIGHT_CONTROL_OFF)
+	{
+		gpioLed0SetOff();
+	}
+
+	// light on
+	if(request->level == LIGHT_CONTROL_ON)
+	{
+		gpioLed0SetOn();
+	}
+}
+
+//unused
+static void level_change(uint16_t model_id,
                          uint16_t element_index,
                          const struct mesh_generic_state *current,
                          const struct mesh_generic_state *target,
