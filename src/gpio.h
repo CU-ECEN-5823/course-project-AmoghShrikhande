@@ -14,6 +14,15 @@
 //for LCD
 #define GPIO_SET_DISPLAY_EXT_COMIN_IMPLEMENTED 	1
 #define GPIO_DISPLAY_SUPPORT_IMPLEMENTED		1
+
+// flame sensor gpio
+#define FLAME_SENSOR_PORT gpioPortD
+#define FLAME_SENSOR_PIN 10
+
+// alarm buzzer gpio
+#define ALARM_PORT gpioPortA
+#define ALARM_PIN 3
+
 // functions for LCD
 void gpioEnableDisplay();
 void gpioSetDisplayExtcomin(bool high);
