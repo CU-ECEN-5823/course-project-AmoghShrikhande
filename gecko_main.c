@@ -55,6 +55,11 @@
 #include "src/log.h"
 #include "src/gpio.h"
 
+// Sensors activation flags
+uint8_t flameActivationFlag = 1;
+
+// For flashing LED and buzzer
+uint8_t toggleCount = 0;
 
 /***********************************************************************************************//**
  * @addtogroup Application
@@ -177,39 +182,6 @@ void gecko_bgapi_classes_init_server_lpn(void)
 	gecko_bgapi_class_mesh_lpn_init();
 //	gecko_bgapi_class_mesh_friend_init();
 }
-
-//
-///**
-// * See main function list in soc-btmesh-switch project file
-// */
-//void gecko_bgapi_classes_init_client_lpn(void)
-//{
-//	gecko_bgapi_class_dfu_init();
-//	gecko_bgapi_class_system_init();
-//	gecko_bgapi_class_le_gap_init();
-//	gecko_bgapi_class_le_connection_init();
-//	//gecko_bgapi_class_gatt_init();
-//	gecko_bgapi_class_gatt_server_init();
-//	gecko_bgapi_class_hardware_init();
-//	gecko_bgapi_class_flash_init();
-//	gecko_bgapi_class_test_init();
-//	//gecko_bgapi_class_sm_init();
-//	//mesh_native_bgapi_init();
-//	gecko_bgapi_class_mesh_node_init();
-//	//gecko_bgapi_class_mesh_prov_init();
-//	gecko_bgapi_class_mesh_proxy_init();
-//	gecko_bgapi_class_mesh_proxy_server_init();
-//	//gecko_bgapi_class_mesh_proxy_client_init();
-//	gecko_bgapi_class_mesh_generic_client_init();
-//	//gecko_bgapi_class_mesh_generic_server_init();
-//	//gecko_bgapi_class_mesh_vendor_model_init();
-//	//gecko_bgapi_class_mesh_health_client_init();
-//	//gecko_bgapi_class_mesh_health_server_init();
-//	//gecko_bgapi_class_mesh_test_init();
-//	gecko_bgapi_class_mesh_lpn_init();
-//	//gecko_bgapi_class_mesh_friend_init();
-//
-//}
 
 void set_device_name(bd_addr *pAddr)
 {
@@ -351,6 +323,11 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     			gecko_cmd_system_reset(0);
     			break;
 
+    		case FLAME_TIMEOUT_FLAG:
+    			// do not attend flame interrupts for a set period
+    			flameActivationFlag = 1;
+    			break;
+
 			// case to find friend after particular interval
     		case TIMER_ID_FRIEND_FIND:
     		{
@@ -361,6 +338,30 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     				LOG_INFO("ret.code %x", result);
     			}
     		}
+    		break;
+
+    		case LPN1_ALERT:
+    			if(toggleCount % 2)
+    			{
+    				toggleCount++;
+    				GPIO_PinOutSet(ALARM_PORT, ALARM_PIN);
+    				gpioLed1SetOn();
+    			}
+    			else
+    			{
+    				toggleCount++;
+    				GPIO_PinOutClear(ALARM_PORT, ALARM_PIN);
+    				gpioLed1SetOff();
+
+    				// stop alerts after 10 seconds
+    				if(toggleCount > 100)
+    				{
+    					toggleCount = 0;
+						gecko_cmd_hardware_set_soft_timer(0, LPN1_ALERT, 0);
+						displayPrintf(DISPLAY_ROW_SENSOR, " ");
+						displayPrintf(DISPLAY_ROW_ACTUATOR, " ");
+    				}
+    			}
     		break;
     	}
     	break;
@@ -411,60 +412,82 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
     	break;
 
 	case gecko_evt_system_external_signal_id:
-		LOG_INFO("in external signal id");
+		;
+		struct mesh_generic_state current;
+		struct mesh_generic_state target;
+		uint16_t resp;
+
+		current.kind = mesh_generic_request_level;
+		target.kind = mesh_generic_request_level;
+
+		// push button case
 		if ((evt->data.evt_system_external_signal.extsignals & PUSHBUTTON_FLAG) != 0)
 		{
 			LOG_INFO("PB0 pressed");
 
-			// stop alarm
-			GPIO_PinOutClear(ALARM_PORT,ALARM_PIN);
-			// stop display message
-			displayPrintf(DISPLAY_ROW_SENSOR, " ");
-			// stop LED
-			gpioLed0SetOff();
+			// stop alerts
+			toggleCount = 101;
 
-//			struct mesh_generic_request req;
-//			uint16_t resp;
-//			uint8_t transition = 0;
-//			uint8_t delay = 0;
-//			req.kind = mesh_generic_request_pb0_press_release;
-////			req.kind = mesh_generic_request_on_off;
-//			trid++;
-//
-//			if(GPIO_PinInGet(gpioPortF,6) == 1)
-//			{
-////				displayPrintf(DISPLAY_ROW_ACTION, "Released");
-//				req.pb0_press_release = MESH_GENERIC_PB0_PRESS_RELEASE_STATE_PRESS;
-////				req.on_off = MESH_GENERIC_ON_OFF_STATE_ON;
-//				LOG_INFO("released");
-//			}
-//			else if(GPIO_PinInGet(gpioPortF,6) == 0)
-//			{
-////				displayPrintf(DISPLAY_ROW_ACTION, "Pressed");
-//				req.pb0_press_release = MESH_GENERIC_PB0_PRESS_RELEASE_STATE_RELEASE;
-//				LOG_INFO("pressed");
-//			}
-//
-////			resp = mesh_lib_generic_client_publish(MESH_GENERIC_PB0_PRESS_RELEASE_CLIENT_MODEL_ID, 0, trid, &req, transition, delay, 0);
-//			resp = mesh_lib_generic_client_publish(MESH_GENERIC_PB0_PRESS_RELEASE_CLIENT_MODEL_ID, 0, trid, &req, transition, delay, 0);
-//
-//			if (resp) {
-//				LOG_INFO("publish fail");
-//			} else {
-//				LOG_INFO("Transaction ID = %u", trid);
-//			}
+			// server publish alert stop data
+			current.level.level = PB0_STOP_ALERT;
+			target.level.level = PB0_STOP_ALERT;
+
+			// do server update
+			resp = mesh_lib_generic_server_update(MESH_GENERIC_LEVEL_SERVER_MODEL_ID, 0, &current, &target, 0);
+			if (resp) {
+				LOG_INFO("gecko_cmd_mesh_generic_server_update failed,code %x", resp);
+			} else {
+				LOG_INFO("update done");
+			}
+
+			// publish server state
+			resp = mesh_lib_generic_server_publish(MESH_GENERIC_LEVEL_SERVER_MODEL_ID, 0, current.kind);
+			if (resp) {
+				LOG_INFO("gecko_cmd_mesh_generic_server_publish failed,code %x", resp);
+			} else {
+				LOG_INFO("request sent");
+			}
 		}
 
+		// flame sensor case
 		if ((evt->data.evt_system_external_signal.extsignals & FLAME_SENSOR_FLAG) != 0)
 		{
-			LOG_INFO("Flame Sensor interrupt");
+			if(flameActivationFlag) {
+				flameActivationFlag = 0;
 
-			// start alarm
-			GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-			// display message
-			displayPrintf(DISPLAY_ROW_SENSOR, "FIRE ALERT");
-			// start LED
-			gpioLed0SetOn();
+				// attend flame sensor interrupt after 5 seconds
+				gecko_cmd_hardware_set_soft_timer(5 * 32768, FLAME_TIMEOUT_FLAG, 1);
+
+				LOG_INFO("Flame Sensor interrupt");
+
+				// display message
+				displayPrintf(DISPLAY_ROW_SENSOR, "FIRE ALERT");
+		        displayPrintf(DISPLAY_ROW_ACTUATOR, "SPRINKLER ON");
+
+		        // start alerts
+		        toggleCount = 0;
+		        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+
+				// server publish flame alert
+				current.level.level = FIRE_ALERT;
+				target.level.level = FIRE_ALERT;
+
+				// do server update
+				resp = mesh_lib_generic_server_update(MESH_GENERIC_LEVEL_SERVER_MODEL_ID, 0, &current, &target, 0);
+				if (resp) {
+					LOG_INFO("gecko_cmd_mesh_generic_server_update failed,code %x", resp);
+				} else {
+					LOG_INFO("update done");
+				}
+
+				// publish server state
+				resp = mesh_lib_generic_server_publish(MESH_GENERIC_LEVEL_SERVER_MODEL_ID, 0, current.kind);
+				if (resp) {
+					LOG_INFO("gecko_cmd_mesh_generic_server_publish failed,code %x", resp);
+				} else {
+					LOG_INFO("request sent");
+				}
+			}
 		}
 		break;
 
@@ -518,20 +541,20 @@ static void onoff_request(uint16_t model_id,
                           uint16_t delay_ms,
                           uint8_t request_flags)
 {
-	LOG_INFO("ONOFF request received");
-	LOG_INFO("request.on_off = %d", request->on_off);
-	if(request->on_off == 0x00)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, " ");
-		gpioLed1SetOff();
-		GPIO_PinOutClear(ALARM_PORT,ALARM_PIN);
-	}
-	if(request->on_off == 0x01)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "TEST");
-		gpioLed1SetOn();
-		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-	}
+//	LOG_INFO("ONOFF request received");
+//	LOG_INFO("request.on_off = %d", request->on_off);
+//	if(request->on_off == 0x00)
+//	{
+//		displayPrintf(DISPLAY_ROW_SENSOR, " ");
+//		gpioLed1SetOff();
+//		GPIO_PinOutClear(ALARM_PORT,ALARM_PIN);
+//	}
+//	if(request->on_off == 0x01)
+//	{
+//		displayPrintf(DISPLAY_ROW_SENSOR, "TEST");
+//		gpioLed1SetOn();
+//		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
+//	}
 }
 
 //unused
@@ -555,67 +578,42 @@ static void level_request(uint16_t model_id,
                           uint8_t request_flags)
 {
 	LOG_INFO("LEVEL request received");
-	LOG_INFO("request.level = %d", request->level);
 
-	// stop alert
-	if(request->level == PB0_STOP_ALERT)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, " ");
-		gpioLed1SetOff();
-		GPIO_PinOutClear(ALARM_PORT,ALARM_PIN);
-	}
+    // stop alerts //
+    if(request->level == PB0_STOP_ALERT) {
+    	toggleCount = 101;
+    }
 
-	// vibration alert
-	if(request->level == VIBRATION_ALERT)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "EARTHQUAKE");
-		gpioLed1SetOn();
-		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-	}
+    // Lights control - ON //
+    if(request->level == LIGHT_CONTROL_ON) {
+    	gpioLed0SetOn();
+    }
 
-	// gas alert
-	if(request->level == GAS_ALERT)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "GAS ALERT");
-		gpioLed1SetOn();
-		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-	}
+    // Lights control - OFF //
+    if(request->level == LIGHT_CONTROL_OFF) {
+    	gpioLed0SetOff();
+    }
 
-	// fire alert
-	if(request->level == FIRE_ALERT)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "FIRE ALERT");
-		gpioLed1SetOn();
-		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-	}
+    // Earthquake alert //
+    if(request->level == VIBRATION_ALERT) {
+        displayPrintf(DISPLAY_ROW_SENSOR, "EARTHQUAKE");
+        toggleCount = 0;
+        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+    }
 
-	// noise alert
-	if(request->level == NOISE_ALERT)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "NOISE ALERT");
-		gpioLed1SetOn();
-		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-	}
+    // Noise alert //
+    if(request->level == NOISE_ALERT) {
+        displayPrintf(DISPLAY_ROW_SENSOR, "NOISE ALERT");
+        toggleCount = 0;
+        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+    }
 
-	// humidity alert
-	if(request->level == HUMIDITY_ALERT)
-	{
-		displayPrintf(DISPLAY_ROW_SENSOR, "HUMIDITY ALERT");
-		gpioLed1SetOn();
-		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-	}
-
-	// light off
-	if(request->level == LIGHT_CONTROL_OFF)
-	{
-		gpioLed0SetOff();
-	}
-
-	// light on
-	if(request->level == LIGHT_CONTROL_ON)
-	{
-		gpioLed0SetOn();
-	}
+    // Humidity alert //
+    if(request->level == HUMIDITY_ALERT) {
+        displayPrintf(DISPLAY_ROW_SENSOR, "HUMIDITY ALERT");
+        toggleCount = 0;
+        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+    }
 }
 
 //unused
@@ -625,5 +623,5 @@ static void level_change(uint16_t model_id,
                          const struct mesh_generic_state *target,
                          uint32_t remaining_ms)
 {
-	LOG_INFO("PB0 State Changed");
+	LOG_INFO("Level Changed");
 }

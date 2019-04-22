@@ -21,7 +21,13 @@
 
 // alarm buzzer gpio
 #define ALARM_PORT gpioPortA
-#define ALARM_PIN 3
+#define ALARM_PIN 2
+
+#define PB0_PORT gpioPortF
+#define PB0_PIN 6
+
+#define PB1_PORT gpioPortF
+#define PB1_PIN 7
 
 // functions for LCD
 void gpioEnableDisplay();

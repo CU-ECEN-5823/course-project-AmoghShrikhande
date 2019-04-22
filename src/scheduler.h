@@ -19,6 +19,8 @@
 #define TIMER_ID_FACTORY_RESET 0x07
 #define TIMER_ID_RESTART 0x08
 #define TIMER_ID_FRIEND_FIND 0x09
+#define FLAME_TIMEOUT_FLAG 0x10
+#define LPN1_ALERT 0x11
 
 // external event flags
 #define PUSHBUTTON_FLAG 0x01
@@ -40,7 +42,6 @@
 static uint8 num_connections = 0;
 
 uint32_t tickCount;
-uint8_t trid;
 
 //function declarations
 void set_device_name(bd_addr *pAddr);

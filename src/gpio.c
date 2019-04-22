@@ -22,10 +22,10 @@ void gpioInit()
 	GPIO_PinModeSet(LED1_port, LED1_pin, gpioModePushPull, false);
 
 	// for PB0
-	GPIO_PinModeSet(gpioPortF, 6, gpioModeInputPull, 1);
+	GPIO_PinModeSet(PB0_PORT, PB0_PIN, gpioModeInputPull, 1);
 
 	// for PB1
-	GPIO_PinModeSet(gpioPortF, 7, gpioModeInputPull, 1);
+	GPIO_PinModeSet(PB1_PORT, PB1_PIN, gpioModeInputPull, 1);
 
 	GPIO_PinModeSet(FLAME_SENSOR_PORT, FLAME_SENSOR_PIN, gpioModeInputPull, 1); // PIN 7
 
@@ -35,7 +35,7 @@ void gpioInit()
 void gpio_interrupt_start()
 {
 	// PB0 interrupt setup
-	GPIO_IntConfig(gpioPortF,6,0,1,1);
+	GPIO_IntConfig(PB0_PORT,PB0_PIN,0,1,1);
 
 	// Flame sensor gpio interrupt configuration
 	GPIO_IntConfig(FLAME_SENSOR_PORT,FLAME_SENSOR_PIN,0,1,1);
