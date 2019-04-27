@@ -525,10 +525,17 @@ static void init_models(void)
 												onoff_request,
 												onoff_change);
 
+#if 1
 	mesh_lib_generic_server_register_handler(MESH_GENERIC_LEVEL_SERVER_MODEL_ID,
 												0,
 												level_request,
 												level_change);
+#else
+	mesh_lib_generic_server_register_handler(MESH_LIGHTING_LIGHTNESS_SERVER_MODEL_ID,
+												0,
+												level_request,
+												level_change);
+#endif
 }
 
 static void onoff_request(uint16_t model_id,
@@ -574,22 +581,11 @@ static void level_request(uint16_t model_id,
 {
 	LOG_INFO("LEVEL request received");
 
+#if 1
     // stop alerts //
     if(request->level == PB0_STOP_ALERT) {
     	toggleCount = 101;
     }
-
-#if 0
-    // Lights control - ON //
-    if(request->level == LIGHT_CONTROL_ON) {
-    	gpioLed0SetOn();
-    }
-
-    // Lights control - OFF //
-    if(request->level == LIGHT_CONTROL_OFF) {
-    	gpioLed0SetOff();
-    }
-#endif
 
     // Earthquake alert //
     if(request->level == VIBRATION_ALERT) {
@@ -611,6 +607,33 @@ static void level_request(uint16_t model_id,
         toggleCount = 0;
         gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
     }
+#else
+    // stop alerts //
+    if(request->lightness == PB0_STOP_ALERT) {
+    	toggleCount = 101;
+    }
+
+    // Earthquake alert //
+    if(request->lightness == VIBRATION_ALERT) {
+        displayPrintf(DISPLAY_ROW_SENSOR, "EARTHQUAKE");
+        toggleCount = 0;
+        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+    }
+
+    // Noise alert //
+    if(request->lightness == NOISE_ALERT) {
+        displayPrintf(DISPLAY_ROW_SENSOR, "NOISE ALERT");
+        toggleCount = 0;
+        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+    }
+
+    // Humidity alert //
+    if(request->lightness == HUMIDITY_ALERT) {
+        displayPrintf(DISPLAY_ROW_SENSOR, "HUMIDITY ALERT");
+        toggleCount = 0;
+        gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+    }
+#endif
 }
 
 //unused

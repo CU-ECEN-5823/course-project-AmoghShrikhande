@@ -10,6 +10,7 @@
 
 #include "native_gecko.h"
 #include "mesh_generic_model_capi_types.h"
+#include "mesh_lighting_model_capi_types.h"
 #include "gpio.h"
 #include "mesh_lib.h"
 
