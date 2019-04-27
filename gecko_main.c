@@ -138,7 +138,7 @@ void lpn_init(void)
 	// Configure the lpn with following parameters:
 	// - Minimum friend queue length = 2
 	// - Poll timeout = 5 seconds
-	res = gecko_cmd_mesh_lpn_configure(2, 5 * 1000)->result;
+	res = gecko_cmd_mesh_lpn_configure(2, 1 * 1000)->result;
 	if (res) {
 		LOG_INFO("LPN conf failed (0x%x)", res);
 		return;
@@ -541,20 +541,15 @@ static void onoff_request(uint16_t model_id,
                           uint16_t delay_ms,
                           uint8_t request_flags)
 {
-//	LOG_INFO("ONOFF request received");
-//	LOG_INFO("request.on_off = %d", request->on_off);
-//	if(request->on_off == 0x00)
-//	{
-//		displayPrintf(DISPLAY_ROW_SENSOR, " ");
-//		gpioLed1SetOff();
-//		GPIO_PinOutClear(ALARM_PORT,ALARM_PIN);
-//	}
-//	if(request->on_off == 0x01)
-//	{
-//		displayPrintf(DISPLAY_ROW_SENSOR, "TEST");
-//		gpioLed1SetOn();
-//		GPIO_PinOutSet(ALARM_PORT,ALARM_PIN);
-//	}
+    // Lights control - ON //
+    if(request->on_off == LIGHT_CONTROL_ON) {
+    	gpioLed0SetOn();
+    }
+
+    // Lights control - OFF //
+    if(request->on_off == LIGHT_CONTROL_OFF) {
+    	gpioLed0SetOff();
+    }
 }
 
 //unused
@@ -584,6 +579,7 @@ static void level_request(uint16_t model_id,
     	toggleCount = 101;
     }
 
+#if 0
     // Lights control - ON //
     if(request->level == LIGHT_CONTROL_ON) {
     	gpioLed0SetOn();
@@ -593,6 +589,7 @@ static void level_request(uint16_t model_id,
     if(request->level == LIGHT_CONTROL_OFF) {
     	gpioLed0SetOff();
     }
+#endif
 
     // Earthquake alert //
     if(request->level == VIBRATION_ALERT) {
