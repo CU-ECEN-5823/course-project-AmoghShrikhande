@@ -85,7 +85,7 @@ void scheduler(void){
 		break;
 
 	case READ_MEAS_MODE_VAL:        // Case 2, the board is waiting for power up
-		//LOG_INFO("Value is %d and %d", event_set.sensor_mode_set, event_set.timer_UF);
+		LOG_INFO("Value is %d and %d", event_set.sensor_mode_set, event_set.timer_UF);
 
 		if(event_set.sensor_mode_set == 1  || event_set.timer_UF == 1)
 		{
