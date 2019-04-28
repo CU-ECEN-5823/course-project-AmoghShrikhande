@@ -13,6 +13,8 @@
 #include "mesh_lighting_model_capi_types.h"
 #include "gpio.h"
 #include "mesh_lib.h"
+#include "Low_energy_timer.h"
+#include "Event_handler.h"
 
 // soft timer flags
 #define DISPLAY_REFRESH 0x05
@@ -24,8 +26,18 @@
 #define LPN1_ALERT 0x11
 
 // external event flags
-#define PUSHBUTTON_FLAG 0x01
-#define FLAME_SENSOR_FLAG 0x02
+#define PUSHBUTTON_FLAG 		0x0001
+#define FLAME_SENSOR_FLAG 		0x0002
+#define GAS_FLAG				0x0200
+
+// scheduler external event flags
+#define HARDWARE_ID_CHECKED  	0x0004
+#define APPLICATION_VALID		0x0008
+#define APPLICATION_WRITE		0x0010
+#define SENSOR_MODE				0x0020
+#define MEASURE_MODE			0x0040
+#define C02_VALUE				0x0080
+#define UF_FLAG					0x0010
 
 /* MACROS FOR DATA SENT VIA MODELS */
 #define PB0_STOP_ALERT          (0x01)        // LEVEL model

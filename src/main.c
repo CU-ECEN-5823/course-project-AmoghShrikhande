@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <native_gecko.h>
 #include "log.h"
+#include "src/I2C.h"
 
 
 extern void gecko_main_init();
@@ -15,12 +16,23 @@ int main(void)
 
   logInit();
 
+  leTimer_config();
+
+  LETIMER_Enable(LETIMER0, true);             // Enable Letimer0
+
+//  sleep_config();                             // Configure the sleep routines
+
+  i2cinit();                                  // Initialize the I2C and make it ready for transfer
+
+  // Calling the scheduler to initialize it
+  scheduler();
+
   /* Infinite loop */
   while (1) {
-	struct gecko_cmd_packet *evt = gecko_wait_event();
-	bool pass = mesh_bgapi_listener(evt);
-	if (pass) {
-		handle_gecko_event(BGLIB_MSG_ID(evt->header), evt);
-	}
+	  struct gecko_cmd_packet *evt = gecko_wait_event();
+	  bool pass = mesh_bgapi_listener(evt);
+	  if (pass) {
+		  handle_gecko_event(BGLIB_MSG_ID(evt->header), evt);
+	  }
   };
 }

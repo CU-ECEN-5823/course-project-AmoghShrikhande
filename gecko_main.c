@@ -420,6 +420,52 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 		current.kind = mesh_generic_request_level;
 		target.kind = mesh_generic_request_level;
 
+		if ((evt->data.evt_system_external_signal.extsignals & HARDWARE_ID_CHECKED) != 0) {
+			event_set.hardware_id_pass = 1;             // Set the event when read transfer is done
+			event_set.event_null = 0;
+			scheduler();
+		}
+
+		if ((evt->data.evt_system_external_signal.extsignals & APPLICATION_VALID) != 0) {
+			event_set.sensor_status = 1;             // Set the event when read transfer is done
+			event_set.event_null = 0;
+			scheduler();
+		}
+
+		if ((evt->data.evt_system_external_signal.extsignals & APPLICATION_WRITE) != 0) {
+			event_set.application_upload = 1;             // Set the event when read transfer is done
+			event_set.event_null = 0;
+			scheduler();
+		}
+
+		if ((evt->data.evt_system_external_signal.extsignals & (SENSOR_MODE || UF_FLAG)) != 0) {
+			event_set.sensor_mode_set = 1;             // Set the event when read transfer is done
+			//event_set.timer_UF = 1;           // Create an event on reaching the underflow
+			event_set.event_null = 0;
+			scheduler();
+		}
+//
+//		if ((evt->data.evt_system_external_signal.extsignals & (SENSOR_MODE || UF_FLAG)) != 0) {
+//			event_set.sensor_mode_set = 1;             // Set the event when read transfer is done
+//			event_set.timer_UF = 1;           // Create an event on reaching the underflow
+//			event_set.event_null = 0;
+//			scheduler();
+//		}
+
+		if ((evt->data.evt_system_external_signal.extsignals & MEASURE_MODE) != 0) {
+			event_set.meas_mode_data_read = 1;             // Set the event when read transfer is done
+			event_set.event_null = 0;
+			scheduler();
+		}
+
+		if ((evt->data.evt_system_external_signal.extsignals & C02_VALUE) != 0) {
+			event_set.value_calculated = 1;             // Set the event when read transfer is done
+			event_set.event_null = 0;
+			scheduler();
+		}
+		/* Scheduler external events ends */
+
+
 		// push button case
 		if ((evt->data.evt_system_external_signal.extsignals & PUSHBUTTON_FLAG) != 0)
 		{
@@ -462,7 +508,6 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
 				// display message
 				displayPrintf(DISPLAY_ROW_SENSOR, "FIRE ALERT");
-		        displayPrintf(DISPLAY_ROW_ACTUATOR, "SPRINKLER ON");
 
 		        // start alerts
 		        toggleCount = 0;
@@ -487,6 +532,39 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 				} else {
 					LOG_INFO("request sent");
 				}
+			}
+		}
+
+		// gas flag
+		if ((evt->data.evt_system_external_signal.extsignals & GAS_FLAG) != 0)
+		{
+			LOG_INFO("Gas Sensor interrupt");
+
+			// display message
+			displayPrintf(DISPLAY_ROW_SENSOR, "GAS ALERT");
+
+			// start alerts
+			toggleCount = 0;
+			gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+
+			// server publish flame alert
+			current.level.level = GAS_ALERT;
+			target.level.level = GAS_ALERT;
+
+			// do server update
+			resp = mesh_lib_generic_server_update(MESH_GENERIC_LEVEL_SERVER_MODEL_ID, 0, &current, &target, 0);
+			if (resp) {
+				LOG_INFO("gecko_cmd_mesh_generic_server_update failed,code %x", resp);
+			} else {
+				LOG_INFO("update done");
+			}
+
+			// publish server state
+			resp = mesh_lib_generic_server_publish(MESH_GENERIC_LEVEL_SERVER_MODEL_ID, 0, current.kind);
+			if (resp) {
+				LOG_INFO("gecko_cmd_mesh_generic_server_publish failed,code %x", resp);
+			} else {
+				LOG_INFO("request sent");
 			}
 		}
 		break;
