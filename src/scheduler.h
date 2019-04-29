@@ -16,6 +16,11 @@
 #include "Low_energy_timer.h"
 #include "Event_handler.h"
 
+#if 0
+#define ONE_SEC_TICKS			(32768)
+#endif
+
+
 // for persistent data
 /* Flash IDs for Flash Store and Load functions */
 #define ALERT_MEM_ID            (0x02)
@@ -108,7 +113,7 @@ static void level_change(uint16_t model_id,
                          const struct mesh_generic_state *target,
 uint32_t remaining_ms);
 
-// PERSISTEN DATA FUNCTION DECLARATIONS
+// PERSISTENT DATA FUNCTION DECLARATIONS
 uint8_t* flash_mem_retrieve(uint8_t flashID);
 void flash_mem_store(uint8_t flashID, uint8_t *dataPtr);
 uint8_t* convertString(char* str);

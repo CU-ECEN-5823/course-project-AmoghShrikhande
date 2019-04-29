@@ -22,6 +22,7 @@
 #define LED1_port gpioPortF
 #define LED1_pin 5
 
+/* Initialize gpio pins */
 void gpioInit()
 {
 	GPIO_DriveStrengthSet(LED0_port, gpioDriveStrengthWeakAlternateStrong);
@@ -35,11 +36,14 @@ void gpioInit()
 	// for PB1
 	GPIO_PinModeSet(PB1_PORT, PB1_PIN, gpioModeInputPull, 1);
 
+	// for flame sensor
 	GPIO_PinModeSet(FLAME_SENSOR_PORT, FLAME_SENSOR_PIN, gpioModeInputPull, 1); // PIN 7
 
+	// for buzzer
 	GPIO_PinModeSet(ALARM_PORT, ALARM_PIN, gpioModePushPull, 0);
 }
 
+/* Start gpio interrupts */
 void gpio_interrupt_start()
 {
 	// PB0 interrupt setup
@@ -52,6 +56,10 @@ void gpio_interrupt_start()
 	//	NVIC_EnableIRQ(GPIO_ODD_IRQn);
 }
 
+/* GPIO EVEN interrupt handler
+ * - handles PB0 interrupt
+ * - handles Flame sensor interrupt
+ *  */
 void GPIO_EVEN_IRQHandler(void)
 {
 	uint32_t reason = GPIO_IntGet();
@@ -72,18 +80,25 @@ void GPIO_EVEN_IRQHandler(void)
 //	GPIO_IntClear(reason);
 //}
 
+// lights ON
 void gpioLed0SetOn()
 {
 	GPIO_PinOutSet(LED0_port,LED0_pin);
 }
+
+// lights OFF
 void gpioLed0SetOff()
 {
 	GPIO_PinOutClear(LED0_port,LED0_pin);
 }
+
+// alert LED ON
 void gpioLed1SetOn()
 {
 	GPIO_PinOutSet(LED1_port,LED1_pin);
 }
+
+// alert LED OFF
 void gpioLed1SetOff()
 {
 	GPIO_PinOutClear(LED1_port,LED1_pin);

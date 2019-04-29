@@ -56,7 +56,7 @@
 #include "src/gpio.h"
 
 /* Variables required for project */
-/* variable to store flash load data - needs to be global */
+/* variables to store flash load data - needs to be global */
 uint8_t flash_data[DISPLAY_DATA_LENGTH];
 uint8_t uint_array[DISPLAY_DATA_LENGTH];
 char char_array[DISPLAY_DATA_LENGTH];
@@ -73,7 +73,7 @@ uint8_t* displayBuffer;
 uint8_t toggleCount = 0;
 uint8_t* toggleCountPtr;
 
-// Sensors activation flags
+/* Sensors activation flags */
 uint8_t flameActivationFlag = 1;
 
 /***********************************************************************************************//**
@@ -171,7 +171,7 @@ void lpn_init(void)
 /**
  * See light switch app.c file definition
  */
-void gecko_bgapi_classes_init_server_lpn(void)
+void x(void)
 {
 	gecko_bgapi_class_dfu_init();
 	gecko_bgapi_class_system_init();
@@ -196,9 +196,11 @@ void gecko_bgapi_classes_init_server_lpn(void)
 	//gecko_bgapi_class_mesh_health_server_init();
 	//gecko_bgapi_class_mesh_test_init();
 	gecko_bgapi_class_mesh_lpn_init();
-	//	gecko_bgapi_class_mesh_friend_init();
+	//gecko_bgapi_class_mesh_friend_init();
 }
 
+
+// Set name of the device
 void set_device_name(bd_addr *pAddr)
 {
 	char name[20];
@@ -226,7 +228,10 @@ void gecko_main_init()
 	// Initialize application
 	initApp();
 
+	// Initialize display
 	displayInit();
+
+	// Initialize gpio
 	gpioInit();
 
 	// Minimize advertisement latency by allowing the advertiser to always
@@ -235,6 +240,7 @@ void gecko_main_init()
 
 	gecko_stack_init(&config);
 
+	// for server init and lpn init
 	gecko_bgapi_classes_init_server_lpn();
 
 	// Initialize coexistence interface. Parameters are taken from HAL config.
@@ -245,171 +251,193 @@ void gecko_main_init()
 void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 {
 	switch (evt_id) {
-	case gecko_evt_system_boot_id:
-		if (GPIO_PinInGet(gpioPortF, 6) == 0 || GPIO_PinInGet(gpioPortF, 7) == 0) {
-			gecko_cmd_flash_ps_erase_all();
-			gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_FACTORY_RESET, 1);
-			displayPrintf(DISPLAY_ROW_ACTION, "Factory Reset");
-			LOG_INFO("factory reset");
-		} else {
-			LOG_INFO("boot done");
-			struct gecko_msg_system_get_bt_address_rsp_t *pAddr = gecko_cmd_system_get_bt_address();
-			set_device_name(&pAddr->address);
-			gecko_cmd_mesh_node_init();
+		// BOOT ID
+		case gecko_evt_system_boot_id:
+			if (GPIO_PinInGet(gpioPortF, 6) == 0 || GPIO_PinInGet(gpioPortF, 7) == 0) {
+				gecko_cmd_flash_ps_erase_all();
+				gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_FACTORY_RESET, 1);
+				displayPrintf(DISPLAY_ROW_ACTION, "Factory Reset");
+				LOG_INFO("factory reset");
+			} else {
+				LOG_INFO("boot done");
+				struct gecko_msg_system_get_bt_address_rsp_t *pAddr = gecko_cmd_system_get_bt_address();
+				set_device_name(&pAddr->address);
+				gecko_cmd_mesh_node_init();
 
-			// loading persistent data
-			lightStatePtr = flash_mem_retrieve(LIGHTS_MEM_ID);
-			lightState = *lightStatePtr;
+				// loading persistent data
+				lightStatePtr = flash_mem_retrieve(LIGHTS_MEM_ID);
+				lightState = *lightStatePtr;
 
-			toggleCountPtr = flash_mem_retrieve(ALERT_MEM_ID);
-			toggleCount = *toggleCountPtr;
-			LOG_INFO("TOGGLE COUNT = %d", toggleCount);
+				toggleCountPtr = flash_mem_retrieve(ALERT_MEM_ID);
+				toggleCount = *toggleCountPtr;
+				LOG_INFO("TOGGLE COUNT = %d", toggleCount);
 
-			displayBuffer = flash_mem_retrieve(DISPLAY_MEM_ID);
-			displayString = convertUint(displayBuffer);
-			LOG_INFO("display message: %15s", displayString);
-		}
-		break;
+				displayBuffer = flash_mem_retrieve(DISPLAY_MEM_ID);
+				displayString = convertUint(displayBuffer);
+				LOG_INFO("display message: %15s", displayString);
+			}
+			break;
 
-	case gecko_evt_mesh_node_initialized_id:
-		LOG_INFO("in mesh node initialized");
+		// NODE INITIALIZED ID
+		case gecko_evt_mesh_node_initialized_id:
+			LOG_INFO("in mesh node initialized");
 
-		struct gecko_msg_mesh_node_initialized_evt_t *pData = (struct gecko_msg_mesh_node_initialized_evt_t *)&(evt->data);
+			struct gecko_msg_mesh_node_initialized_evt_t *pData = (struct gecko_msg_mesh_node_initialized_evt_t *)&(evt->data);
 
-		if (pData->provisioned) {
+			if (pData->provisioned) {
+				LOG_INFO("node is provisioned");
+				displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
+
+				// PERSISTENT DATA EXECUTION
+				lightState ? gpioLed0SetOn() : gpioLed0SetOff();
+
+				if(toggleCount != 0)
+					gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
+
+				displayPrintf(DISPLAY_ROW_SENSOR, "%15s", displayString);
+				// PERSISTENT DATA EXECUTION END
+
+				mesh_lib_init(malloc,free,9);
+				init_models();
+
+				// set node as generic server
+				gecko_cmd_mesh_generic_server_init();
+
+				// do low power initialization
+				LOG_INFO("LPN mode initialization");
+				lpn_init();
+
+				// enable gpio interrupts
+				gpio_interrupt_start();
+			} else {
+				LOG_INFO("node is unprovisioned");
+				displayPrintf(DISPLAY_ROW_ACTION, "Unprovisioned");
+				gecko_cmd_mesh_node_start_unprov_beaconing(0x3);   // enable ADV and GATT provisioning bearer
+			}
+			break;
+
+		// NODE PROVISIONING STARTED ID
+		case gecko_evt_mesh_node_provisioning_started_id:
+			displayPrintf(DISPLAY_ROW_ACTION, "Provisioning");
+			LOG_INFO("provisioning started");
+			break;
+
+		// NODE PROVISIONED ID
+		case gecko_evt_mesh_node_provisioned_id:
 			LOG_INFO("node is provisioned");
 			displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
-
-			// PERSISTENT DATA EXECUTION
-			lightState ? gpioLed0SetOn() : gpioLed0SetOff();
-
-			if(toggleCount != 0)
-				gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
-
-			displayPrintf(DISPLAY_ROW_SENSOR, "%15s", displayString);
-			// PERSISTENT DATA EXECUTION END
 
 			mesh_lib_init(malloc,free,9);
 			init_models();
 
+			// set node as generic server
 			gecko_cmd_mesh_generic_server_init();
 
+			// do low power initialization
 			LOG_INFO("LPN mode initialization");
 			lpn_init();
 
+			// enable gpio interrupts
 			gpio_interrupt_start();
-		} else {
-			LOG_INFO("node is unprovisioned");
-			displayPrintf(DISPLAY_ROW_ACTION, "Unprovisioned");
-			gecko_cmd_mesh_node_start_unprov_beaconing(0x3);   // enable ADV and GATT provisioning bearer
-		}
-		break;
-
-	case gecko_evt_mesh_node_provisioning_started_id:
-		displayPrintf(DISPLAY_ROW_ACTION, "Provisioning");
-		LOG_INFO("provisioning started");
-		break;
-
-	case gecko_evt_mesh_node_provisioned_id:
-		LOG_INFO("node is provisioned");
-		displayPrintf(DISPLAY_ROW_ACTION, "Provisioned");
-
-		mesh_lib_init(malloc,free,9);
-		init_models();
-
-		gecko_cmd_mesh_generic_server_init();
-
-		LOG_INFO("LPN mode initialization");
-		lpn_init();
-
-		gpio_interrupt_start();
-		break;
-
-	case gecko_evt_mesh_node_provisioning_failed_id:
-		LOG_INFO("provisioning failed, code %x", evt->data.evt_mesh_node_provisioning_failed.result);
-		displayPrintf(DISPLAY_ROW_ACTION, "Provisioning Failed");
-		gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_RESTART, 1);
-		break;
-
-
-	case gecko_evt_mesh_generic_server_state_changed_id:
-		mesh_lib_generic_server_event_handler(evt);
-		LOG_INFO("Server state changed id");
-		break;
-
-	case gecko_evt_mesh_generic_server_client_request_id:
-		mesh_lib_generic_server_event_handler(evt);
-		LOG_INFO("Client request received id");
-		break;
-
-	case gecko_evt_hardware_soft_timer_id:
-		switch (evt->data.evt_hardware_soft_timer.handle) {
-		case DISPLAY_REFRESH:
-			displayUpdate();
-			break;
-		case LOG_REFRESH:
-			tickCount = tickCount + 10;
-			break;
-		case TIMER_ID_FACTORY_RESET:
-			// reset the device to finish factory reset
-			gecko_cmd_system_reset(0);
 			break;
 
-		case TIMER_ID_RESTART:
-			// restart timer expires, reset the device
-			gecko_cmd_system_reset(0);
+		// NODE PROVISIONING FAILED ID
+		case gecko_evt_mesh_node_provisioning_failed_id:
+			LOG_INFO("provisioning failed, code %x", evt->data.evt_mesh_node_provisioning_failed.result);
+			displayPrintf(DISPLAY_ROW_ACTION, "Provisioning Failed");
+			gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_RESTART, 1);
 			break;
 
-		case FLAME_TIMEOUT_FLAG:
-			// do not attend flame interrupts for a set period
-			flameActivationFlag = 1;
+
+		// SERVER STATE CHANGED ID
+		case gecko_evt_mesh_generic_server_state_changed_id:
+			mesh_lib_generic_server_event_handler(evt);
+			LOG_INFO("Server state changed id");
 			break;
 
-			// case to find friend after particular interval
-		case TIMER_ID_FRIEND_FIND:
-		{
-			LOG_INFO("trying to find friend...");
-			uint16_t result;
-			result = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
-			if (result != 0) {
-				LOG_INFO("ret.code %x", result);
-			}
-		}
-		break;
+		// CLIENT REQUEST ID
+		case gecko_evt_mesh_generic_server_client_request_id:
+			mesh_lib_generic_server_event_handler(evt);
+			LOG_INFO("Client request received id");
+			break;
 
-		case LPN1_ALERT:
-			if(toggleCount % 2)
-			{
-				toggleCount++;
-				flash_mem_store(ALERT_MEM_ID, &toggleCount);
-				GPIO_PinOutSet(ALARM_PORT, ALARM_PIN);
-				gpioLed1SetOn();
-			}
-			else
-			{
-				toggleCount++;
-				flash_mem_store(ALERT_MEM_ID, &toggleCount);
-				GPIO_PinOutClear(ALARM_PORT, ALARM_PIN);
-				gpioLed1SetOff();
+		// HARDWARE SOFTTIMER ID
+		case gecko_evt_hardware_soft_timer_id:
+			switch (evt->data.evt_hardware_soft_timer.handle) {
+				// do display update every 1 second to remove charge buildup
+				case DISPLAY_REFRESH:
+					displayUpdate();
+					break;
 
-				// stop alerts after 10 seconds
-				if(toggleCount > 100)
-				{
-					toggleCount = 0;
-					flash_mem_store(ALERT_MEM_ID, &toggleCount);
-					gecko_cmd_hardware_set_soft_timer(0, LPN1_ALERT, 0);
-					displayPrintf(DISPLAY_ROW_SENSOR, "               ");
+				// for logger time stamp - resolution of 10 msec
+				case LOG_REFRESH:
+					tickCount = tickCount + 10;
+					break;
 
-					// storing the cleared display in persistent data
-					displayString = "               ";
-					displayBuffer = convertString(displayString);
-					flash_mem_store(DISPLAY_MEM_ID, displayBuffer);
-				}
+				case TIMER_ID_FACTORY_RESET:
+					// reset the device to finish factory reset
+					gecko_cmd_system_reset(0);
+					break;
+
+				case TIMER_ID_RESTART:
+					// restart timer expires, reset the device
+					gecko_cmd_system_reset(0);
+					break;
+
+				case FLAME_TIMEOUT_FLAG:
+					// do not attend flame interrupts for a set period
+					flameActivationFlag = 1;
+					break;
+
+				// case to find friend after particular interval
+				case TIMER_ID_FRIEND_FIND:
+					LOG_INFO("trying to find friend...");
+					uint16_t result;
+					result = gecko_cmd_mesh_lpn_establish_friendship(0)->result;
+					if (result != 0) {
+						LOG_INFO("ret.code %x", result);
+					}
+					break;
+
+				// blink alert LED 1 and buzzer for 10 seconds
+				case LPN1_ALERT:
+					// if toggleCount is an even number
+					if(toggleCount % 2)
+					{
+						toggleCount++;
+						flash_mem_store(ALERT_MEM_ID, &toggleCount);
+						GPIO_PinOutSet(ALARM_PORT, ALARM_PIN);
+						gpioLed1SetOn();
+					}
+					else
+					{
+						toggleCount++;
+						flash_mem_store(ALERT_MEM_ID, &toggleCount);
+						GPIO_PinOutClear(ALARM_PORT, ALARM_PIN);
+						gpioLed1SetOff();
+
+						// stop alerts after 10 seconds
+						if(toggleCount > 100)
+						{
+							// reset toggleCount
+							toggleCount = 0;
+							flash_mem_store(ALERT_MEM_ID, &toggleCount);
+							gecko_cmd_hardware_set_soft_timer(0, LPN1_ALERT, 0);
+
+							// remove display message
+							displayPrintf(DISPLAY_ROW_SENSOR, "               ");
+
+							// storing the cleared display in persistent data
+							displayString = "               ";
+							displayBuffer = convertString(displayString);
+							flash_mem_store(DISPLAY_MEM_ID, displayBuffer);
+						}
+					}
+					break;
 			}
 			break;
-		}
-		break;
 
+		// CONNECTION OPEN ID
 		case gecko_evt_le_connection_opened_id:
 			LOG_INFO("in connection opened id");
 			displayPrintf(DISPLAY_ROW_CONNECTION, "Connected");
@@ -419,6 +447,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			displayPrintf(DISPLAY_ROW_LPN, "LPN off");
 			break;
 
+		// CONNECTION CLOSE ID
 		case gecko_evt_le_connection_closed_id:
 			/* Check if need to boot to dfu mode */
 			if (boot_to_dfu) {
@@ -434,11 +463,13 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			}
 			break;
 
+		// FRIENDSHIP ESTABLISHED ID
 		case gecko_evt_mesh_lpn_friendship_established_id:
 			LOG_INFO("friendship established");
 			displayPrintf(DISPLAY_ROW_LPN, "LPN");
 			break;
 
+		// FRIENDSHIP FAILED ID
 		case gecko_evt_mesh_lpn_friendship_failed_id:
 			LOG_INFO("friendship failed");
 			displayPrintf(DISPLAY_ROW_LPN, "no friend");
@@ -446,6 +477,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			gecko_cmd_hardware_set_soft_timer(2 * 32768, TIMER_ID_FRIEND_FIND, 1);
 			break;
 
+		// FRIENDSHIP TERMINATED ID
 		case gecko_evt_mesh_lpn_friendship_terminated_id:
 			LOG_INFO("friendship terminated");
 			displayPrintf(DISPLAY_ROW_LPN, "friend lost");
@@ -455,6 +487,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			}
 			break;
 
+		// EXTERNAL SIGNAL ID
 		case gecko_evt_system_external_signal_id:
 			;
 			struct mesh_generic_state current;
@@ -464,6 +497,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			current.kind = mesh_generic_request_level;
 			target.kind = mesh_generic_request_level;
 
+			/* Scheduler external events starts */
 			if ((evt->data.evt_system_external_signal.extsignals & HARDWARE_ID_CHECKED) != 0) {
 				event_set.hardware_id_pass = 1;             // Set the event when read transfer is done
 				event_set.event_null = 0;
@@ -517,8 +551,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 				LOG_INFO("PB0 pressed");
 
 				// stop alerts
-//				toggleCount = 101;
-//				flash_mem_store(ALERT_MEM_ID, &toggleCount);
+				toggleCount = 101;
+				flash_mem_store(ALERT_MEM_ID, &toggleCount);
 
 				// server publish alert stop data
 				current.level.level = PB0_STOP_ALERT;
@@ -546,6 +580,10 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			{
 				if(flameActivationFlag) {
 					flameActivationFlag = 0;
+
+#if 0
+					// disable flame sensor gpio here
+#endif
 
 					// attend flame sensor interrupt after 5 seconds
 					gecko_cmd_hardware_set_soft_timer(5 * 32768, FLAME_TIMEOUT_FLAG, 1);
@@ -621,6 +659,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 			}
 			break;
 
+#if 0
 		case gecko_evt_gatt_server_user_write_request_id:
 			if (evt->data.evt_gatt_server_user_write_request.characteristic == gattdb_ota_control) {
 				/* Set flag to enter to OTA mode */
@@ -635,7 +674,9 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 				gecko_cmd_le_connection_close(evt->data.evt_gatt_server_user_write_request.connection);
 			}
 			break;
+#endif
 
+		// NODE RESET ID
 		case gecko_evt_mesh_node_reset_id:
 			LOG_INFO("in mesh node reset id");
 			// reset mesh node
@@ -647,19 +688,25 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 	}
 }
 
+/*
+ * Generic server register handler
+ * */
 static void init_models(void)
 {
+	// for ONOFF model
 	mesh_lib_generic_server_register_handler(MESH_GENERIC_ON_OFF_SERVER_MODEL_ID,
 			0,
 			onoff_request,
 			onoff_change);
 
+	// for LEVEL model
 	mesh_lib_generic_server_register_handler(MESH_GENERIC_LEVEL_SERVER_MODEL_ID,
 			0,
 			level_request,
 			level_change);
 }
 
+// ONOFF request callback function
 static void onoff_request(uint16_t model_id,
 		uint16_t element_index,
 		uint16_t client_addr,
@@ -673,6 +720,8 @@ static void onoff_request(uint16_t model_id,
 	// Lights control - ON //
 	if(request->on_off == LIGHT_CONTROL_ON) {
 		gpioLed0SetOn();
+
+		// save lights state in flash
 		lightState = 1;
 		flash_mem_store(LIGHTS_MEM_ID, &lightState);
 	}
@@ -680,21 +729,24 @@ static void onoff_request(uint16_t model_id,
 	// Lights control - OFF //
 	if(request->on_off == LIGHT_CONTROL_OFF) {
 		gpioLed0SetOff();
+
+		// save lights state in flash
 		lightState = 0;
 		flash_mem_store(LIGHTS_MEM_ID, &lightState);
 	}
 }
 
-//unused
+// ONOFF change callback function
 static void onoff_change(uint16_t model_id,
 		uint16_t element_index,
 		const struct mesh_generic_state *current,
 		const struct mesh_generic_state *target,
 		uint32_t remaining_ms)
 {
-	LOG_INFO("PB0 State Changed");
+	LOG_INFO("ONOFF State Changed");
 }
 
+// LEVEL request callback function
 static void level_request(uint16_t model_id,
 		uint16_t element_index,
 		uint16_t client_addr,
@@ -705,8 +757,6 @@ static void level_request(uint16_t model_id,
 		uint16_t delay_ms,
 		uint8_t request_flags)
 {
-	LOG_INFO("LEVEL request received");
-
 	// stop alerts //
 	if(request->level == PB0_STOP_ALERT) {
 		toggleCount = 101;
@@ -719,6 +769,7 @@ static void level_request(uint16_t model_id,
 		displayString = "  EARTHQUAKE  ";
 		flash_mem_store(DISPLAY_MEM_ID, convertString(displayString));
 
+		// start alerts with a timeout of 10 seconds
 		toggleCount = 0;
 		flash_mem_store(ALERT_MEM_ID, &toggleCount);
 		gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
@@ -730,6 +781,7 @@ static void level_request(uint16_t model_id,
 		displayString = "  NOISE ALERT  ";
 		flash_mem_store(DISPLAY_MEM_ID, convertString(displayString));
 
+		// start alerts with a timeout of 10 seconds
 		toggleCount = 0;
 		flash_mem_store(ALERT_MEM_ID, &toggleCount);
 		gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
@@ -741,20 +793,21 @@ static void level_request(uint16_t model_id,
 		displayString = "HUMIDITY ALERT";
 		flash_mem_store(DISPLAY_MEM_ID, convertString(displayString));
 
+		// start alerts with a timeout of 10 seconds
 		toggleCount = 0;
 		flash_mem_store(ALERT_MEM_ID, &toggleCount);
 		gecko_cmd_hardware_set_soft_timer(3277, LPN1_ALERT, 0);
 	}
 }
 
-//unused
+// LEVEL change callback function
 static void level_change(uint16_t model_id,
 		uint16_t element_index,
 		const struct mesh_generic_state *current,
 		const struct mesh_generic_state *target,
 		uint32_t remaining_ms)
 {
-	LOG_INFO("Level Changed");
+	LOG_INFO("LEVEL State Changed");
 }
 
 /* PERSISTENT DATA FUNCTIONS */
@@ -767,11 +820,13 @@ uint8_t* flash_mem_retrieve(uint8_t flashID) {
     // array to store actual data, display length taken because that will be longest
 
     switch (flashID) {
+    	// loads toggleCount
         case ALERT_MEM_ID:
             flash_resp = gecko_cmd_flash_ps_load(ALERT_ADDR);
             flash_data[0] = flash_resp->value.data[0];
             break;
 
+        // loads display message
         case DISPLAY_MEM_ID:
             flash_resp = gecko_cmd_flash_ps_load(DISPLAY_ADDR);
             for(int i=0; i<DISPLAY_DATA_LENGTH; i++)    {
@@ -779,6 +834,7 @@ uint8_t* flash_mem_retrieve(uint8_t flashID) {
             }
             break;
 
+        // loads lights status
         case LIGHTS_MEM_ID:
             flash_resp = gecko_cmd_flash_ps_load(LIGHTS_ADDR);
             flash_data[0] = flash_resp->value.data[0];
@@ -802,14 +858,17 @@ void flash_mem_store(uint8_t flashID, uint8_t *dataPtr) {
     uint16 resp;
 
     switch (flashID) {
+    	// store toggleCount
         case ALERT_MEM_ID:
             resp = gecko_cmd_flash_ps_save(ALERT_ADDR, ALERT_DATA_LENGTH, dataPtr)->result;
             break;
 
+        // store display message
         case DISPLAY_MEM_ID:
             resp = gecko_cmd_flash_ps_save(DISPLAY_ADDR, DISPLAY_DATA_LENGTH, dataPtr)->result;
             break;
 
+        // store lights state
         case LIGHTS_MEM_ID:
             resp = gecko_cmd_flash_ps_save(LIGHTS_ADDR, LIGHTS_DATA_LENGTH, dataPtr)->result;
             break;
@@ -823,21 +882,27 @@ void flash_mem_store(uint8_t flashID, uint8_t *dataPtr) {
 }
 
 // conversion of string to uint8 array
+// required before storing display message in flash
 uint8_t* convertString(char* str) {
-    LOG_INFO("strlen = %d", strlen(str));
+//    LOG_INFO("strlen = %d", strlen(str));
     for(int i=0; i<strlen(str); i++){
         uint_array[i] = (uint8_t)str[i];
-        LOG_INFO("%c - %d", str[i], uint_array[i]);
+
+        // print out each character - to verify
+//        LOG_INFO("%c - %d", str[i], uint_array[i]);
     }
     return uint_array;
 }
 
 // conversion of uint8 array to string
+// required after loading display message from flash
 char* convertUint(uint8_t* array) {
 //    LOG_INFO("SIZEOF = %d", sizeof(array));
     for(int i=0; i<DISPLAY_DATA_LENGTH; i++){
         char_array[i] = (char)array[i];
-        LOG_INFO("%c - %d", char_array[i], array[i]);
+
+        // print out each character - to verify
+//        LOG_INFO("%c - %d", char_array[i], array[i]);
     }
     return char_array;
 }

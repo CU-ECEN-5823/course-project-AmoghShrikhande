@@ -32,9 +32,6 @@ uint8_t data_register = 0x02;
 // This variable contains the final value of CO2
 uint16_t co2_data;
 
-
-
-
 /***************************************************************************************
  *                          GLOBAL STRUCTURES                                           *
  ***************************************************************************************/
@@ -58,13 +55,6 @@ Gas_sensor I2C_flag;
 extern struct Possible_events event_set;
 I2C_TransferReturn_TypeDef result;
 I2C_TransferSeq_TypeDef sequence_write;
-
-
-
-
-
-
-
 
 /*******************************************************************************
  * Function Name: i2cinit
@@ -101,11 +91,11 @@ void i2cinit()
 }
 
 /*******************************************************************************
- * Function Name: i2cinit
+ * Function Name: hardware_id_check
  ********************************************************************************
  *
  * Summary:
- *  Initializes the I2C
+ *  This function is used to check if the sensor is communicating with the development board
  *
  * Parameters:
  *  Void
@@ -121,22 +111,17 @@ void i2cinit()
 void hardware_id_check()
 {
 	sequence_write_hardware_id.flags = I2C_FLAG_WRITE_READ;
+	// Structure needed to be populated in order to send data to the sensor via I2C
 	sequence_write_hardware_id.addr = slave_address;
 	sequence_write_hardware_id.buf[0].data = &hardware_id_register;             // Store the data from the temperature sensor in a buffer
-
-	sequence_write_hardware_id.buf[1].data = &receive_hardware_id_store;
-
-	sequence_write_hardware_id.buf[0].len = 1;
+    sequence_write_hardware_id.buf[1].data = &receive_hardware_id_store;
+    sequence_write_hardware_id.buf[0].len = 1;
 	sequence_write_hardware_id.buf[1].len = 1;
-
-	LOG_INFO("ID : %d", (sequence_write_hardware_id.buf[1].data));
-	LOG_INFO("ID : %d", *(sequence_write_hardware_id.buf[1].data));
+    // Set the flag for checking ID
 	I2C_flag.hardware_id_checked = 1;
+	// Transfer the data to the slave
 	I2C_TransferInit(I2C0, &sequence_write_hardware_id);
-
-	LOG_INFO("ID : %d", (sequence_write_hardware_id.buf[1].data));
-	LOG_INFO("ID : %d", *(sequence_write_hardware_id.buf[1].data));
-
+	// Check if the value returned by the WHO AM I register matches the desired value
 	if ( *(sequence_write_hardware_id.buf[1].data) == 129 )
 	{
 		LOG_INFO("ID matching ");
@@ -148,7 +133,7 @@ void hardware_id_check()
 }
 
 /*******************************************************************************
- * Function Name: i2cinit
+ * Function Name: write_application
  ********************************************************************************
  *
  * Summary:
@@ -167,11 +152,13 @@ void hardware_id_check()
 void write_application()
 {
 	sequence_write_application.flags = I2C_FLAG_WRITE;
-	sequence_write_application.addr = slave_address;
-	sequence_write_application.buf[0].data = &application_register;             // Store the data from the temperature sensor in a buffer
-	sequence_write_application.buf[0].len = 1;                     // 2 bytes of data stored in the buffer
-	I2C_flag.application_write = 1;
 
+	sequence_write_application.addr = slave_address;
+	sequence_write_application.buf[0].data = &application_register;
+	sequence_write_application.buf[0].len = 1;
+
+	I2C_flag.application_write = 1;
+    // Send the data to the sensor
 	I2C_TransferInit(I2C0, &sequence_write_application);
 }
 
