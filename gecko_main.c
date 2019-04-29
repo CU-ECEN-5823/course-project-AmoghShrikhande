@@ -482,7 +482,8 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 				scheduler();
 			}
 
-			if ((evt->data.evt_system_external_signal.extsignals & (SENSOR_MODE || UF_FLAG)) != 0) {
+			//if ((evt->data.evt_system_external_signal.extsignals & (SENSOR_MODE || UF_FLAG)) != 0) {
+			if (((evt->data.evt_system_external_signal.extsignals & SENSOR_MODE) ||(evt->data.evt_system_external_signal.extsignals & UF_FLAG)) != 0) {
 				event_set.sensor_mode_set = 1;             // Set the event when read transfer is done
 				//event_set.timer_UF = 1;           // Create an event on reaching the underflow
 				event_set.event_null = 0;

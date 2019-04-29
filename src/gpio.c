@@ -56,9 +56,12 @@ void GPIO_EVEN_IRQHandler(void)
 {
 	uint32_t reason = GPIO_IntGet();
 	GPIO_IntClear(reason);
+
+	// push button interrupt
 	if(reason == 0x40)
 		gecko_external_signal(PUSHBUTTON_FLAG);
 
+	// flame sensor interrupt
 	if(reason == 0x400)
 		gecko_external_signal(FLAME_SENSOR_FLAG);
 }

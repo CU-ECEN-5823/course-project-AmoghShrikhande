@@ -49,7 +49,7 @@
 // scheduler external event flags
 #define HARDWARE_ID_CHECKED  	0x0004
 #define APPLICATION_VALID		0x0008
-#define APPLICATION_WRITE		0x0011
+#define APPLICATION_WRITE		0x0800
 #define SENSOR_MODE				0x0020
 #define MEASURE_MODE			0x0040
 #define C02_VALUE				0x0080

@@ -56,7 +56,7 @@ void scheduler(void){
 			event_set.event_null = 1;
 			status_read();
 			//write_application();
-//			LOG_INFO("IN Device_correct CASE");
+			LOG_INFO("IN Device_correct CASE");
 			next_state = Status_read; // define next state
 		}
 		break;
@@ -68,7 +68,7 @@ void scheduler(void){
 			event_set.event_null = 1;
 			write_application();
 			//status_read();
-//			LOG_INFO("IN Status_read CASE");
+			LOG_INFO("IN Status_read CASE");
 			next_state = Application_uploaded; // define next state
 		}
 		break;
@@ -79,7 +79,7 @@ void scheduler(void){
 			event_set.application_upload = 0;    // Clear the comp1 flag
 			event_set.event_null = 1;
 			sensor_mode_set();
-//			LOG_INFO("IN Application_uploaded CASE");
+			LOG_INFO("IN Application_uploaded CASE");
 			next_state = READ_MEAS_MODE_VAL; // define next state
 		}
 		break;
@@ -105,7 +105,7 @@ void scheduler(void){
 			event_set.meas_mode_data_read = 0;    // Clear the comp1 flag
 			event_set.event_null = 1;
 			CO2_value_calculation();
-//			LOG_INFO("IN Measurement_mode_configured CASE");
+			LOG_INFO("IN Measurement_mode_configured CASE");
 			next_state = display_co2; // define next state
 		}
 		break;
