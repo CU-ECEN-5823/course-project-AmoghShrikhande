@@ -179,7 +179,7 @@ void CO2_value_display(void)
 	temperature_data |= (receive_data_store[1]);
 	LOG_INFO("%d", temperature_data);
 
-	if(temperature_data > 500)
+	if(temperature_data > 700)
 		gecko_external_signal(GAS_FLAG);
 }
 

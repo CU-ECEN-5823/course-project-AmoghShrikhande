@@ -16,6 +16,22 @@
 #include "Low_energy_timer.h"
 #include "Event_handler.h"
 
+// for persistent data
+/* Flash IDs for Flash Store and Load functions */
+#define ALERT_MEM_ID            (0x02)
+#define DISPLAY_MEM_ID          (0x03)
+#define LIGHTS_MEM_ID           (0x04)
+
+/* Flash Save Keys */
+#define ALERT_ADDR        		(0x4001)
+#define DISPLAY_ADDR       		(0x4002)
+#define LIGHTS_ADDR       		(0x4003)
+
+/* Persistent data lengths */
+#define ALERT_DATA_LENGTH        (1)
+#define DISPLAY_DATA_LENGTH      (15)
+#define LIGHTS_DATA_LENGTH       (1)
+
 // soft timer flags
 #define DISPLAY_REFRESH 0x05
 #define LOG_REFRESH 0x06
@@ -26,7 +42,7 @@
 #define LPN1_ALERT 0x11
 
 // external event flags
-#define PUSHBUTTON_FLAG 		0x0001
+#define PUSHBUTTON_FLAG 		0x0400
 #define FLAME_SENSOR_FLAG 		0x0002
 #define GAS_FLAG				0x0200
 
@@ -42,15 +58,8 @@
 /* MACROS FOR DATA SENT VIA MODELS */
 #define PB0_STOP_ALERT          (0x01)        // LEVEL model
 #define VIBRATION_ALERT         (0x0A)        // LEVEL model
-
-#if 0
-#define LIGHT_CONTROL_ON        (0x1B)        // LEVEL model
-#define LIGHT_CONTROL_OFF       (0x2B)        // LEVEL model
-#else
-#define LIGHT_CONTROL_ON        (0x01)        // LEVEL model
-#define LIGHT_CONTROL_OFF       (0x00)        // LEVEL model
-#endif
-
+#define LIGHT_CONTROL_ON        (0x01)        // ON OFF model
+#define LIGHT_CONTROL_OFF       (0x00)        // ON OFF model
 #define GAS_ALERT               (0x0C)        // LEVEL model
 #define FIRE_ALERT              (0x0D)        // LEVEL model
 #define NOISE_ALERT             (0x0E)        // LEVEL model
@@ -98,5 +107,12 @@ static void level_change(uint16_t model_id,
                          const struct mesh_generic_state *current,
                          const struct mesh_generic_state *target,
 uint32_t remaining_ms);
+
+// PERSISTEN DATA FUNCTION DECLARATIONS
+uint8_t* flash_mem_retrieve(uint8_t flashID);
+void flash_mem_store(uint8_t flashID, uint8_t *dataPtr);
+uint8_t* convertString(char* str);
+char* convertUint(uint8_t* array);
+
 
 #endif /* SRC_SCHEDULER_H_ */

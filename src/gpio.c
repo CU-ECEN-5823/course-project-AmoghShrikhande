@@ -4,13 +4,21 @@
  *  Created on: Dec 12, 2018
  *      Author: Dan Walkes
  */
+
+/***************************************************************************************
+ *                          HEADERS                                                     *
+ ***************************************************************************************/
 #include "gpio.h"
 #include "em_gpio.h"
 #include <string.h>
 
-
+/***************************************************************************************
+ *                          MACROS                                                     *
+ ***************************************************************************************/
+// On board LED0 is on GPIO Port F, PIN 4
 #define	LED0_port gpioPortF
 #define LED0_pin	4
+// On board LED0 is on GPIO Port F, PIN 5
 #define LED1_port gpioPortF
 #define LED1_pin 5
 
@@ -41,7 +49,7 @@ void gpio_interrupt_start()
 	GPIO_IntConfig(FLAME_SENSOR_PORT,FLAME_SENSOR_PIN,0,1,1);
 
 	NVIC_EnableIRQ(GPIO_EVEN_IRQn);
-//	NVIC_EnableIRQ(GPIO_ODD_IRQn);
+	//	NVIC_EnableIRQ(GPIO_ODD_IRQn);
 }
 
 void GPIO_EVEN_IRQHandler(void)
