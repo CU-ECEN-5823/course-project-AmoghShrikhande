@@ -171,7 +171,7 @@ void lpn_init(void)
 /**
  * See light switch app.c file definition
  */
-void x(void)
+void gecko_bgapi_classes_init_server_lpn(void)
 {
 	gecko_bgapi_class_dfu_init();
 	gecko_bgapi_class_system_init();
@@ -233,7 +233,6 @@ void gecko_main_init()
 
 	// Initialize gpio
 	gpioInit();
-
 	// Minimize advertisement latency by allowing the advertiser to always
 	// interrupt the scanner.
 	linklayer_priorities.scan_max = linklayer_priorities.adv_min + 1;
@@ -243,7 +242,7 @@ void gecko_main_init()
 	// for server init and lpn init
 	gecko_bgapi_classes_init_server_lpn();
 
-	// Initialize coexistence interface. Parameters are taken from HAL config.
+	// Initialize coexistence interface. Parameters are  taken from HAL config.
 	gecko_initCoexHAL();
 
 }
@@ -253,7 +252,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 	switch (evt_id) {
 		// BOOT ID
 		case gecko_evt_system_boot_id:
-			if (GPIO_PinInGet(gpioPortF, 6) == 0 || GPIO_PinInGet(gpioPortF, 7) == 0) {
+			if (GPIO_PinInGet(PB0_PORT, PB0_PIN) == 0 || GPIO_PinInGet(PB1_PORT, PB1_PIN) == 0) {
 				gecko_cmd_flash_ps_erase_all();
 				gecko_cmd_hardware_set_soft_timer(32768*2, TIMER_ID_FACTORY_RESET, 1);
 				displayPrintf(DISPLAY_ROW_ACTION, "Factory Reset");
@@ -499,46 +498,38 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 
 			/* Scheduler external events starts */
 			if ((evt->data.evt_system_external_signal.extsignals & HARDWARE_ID_CHECKED) != 0) {
-				event_set.hardware_id_pass = 1;             // Set the event when read transfer is done
+				event_set.hardware_id_pass = 1;
 				event_set.event_null = 0;
 				scheduler();
 			}
 
 			if ((evt->data.evt_system_external_signal.extsignals & APPLICATION_VALID) != 0) {
-				event_set.sensor_status = 1;             // Set the event when read transfer is done
+				event_set.sensor_status = 1;
 				event_set.event_null = 0;
 				scheduler();
 			}
 
 			if ((evt->data.evt_system_external_signal.extsignals & APPLICATION_WRITE) != 0) {
-				event_set.application_upload = 1;             // Set the event when read transfer is done
+				event_set.application_upload = 1;
 				event_set.event_null = 0;
 				scheduler();
 			}
 
-			//if ((evt->data.evt_system_external_signal.extsignals & (SENSOR_MODE || UF_FLAG)) != 0) {
+
 			if (((evt->data.evt_system_external_signal.extsignals & SENSOR_MODE) ||(evt->data.evt_system_external_signal.extsignals & UF_FLAG)) != 0) {
-				event_set.sensor_mode_set = 1;             // Set the event when read transfer is done
-				//event_set.timer_UF = 1;           // Create an event on reaching the underflow
+				event_set.sensor_mode_set = 1;
 				event_set.event_null = 0;
 				scheduler();
 			}
-			//
-			//		if ((evt->data.evt_system_external_signal.extsignals & (SENSOR_MODE || UF_FLAG)) != 0) {
-			//			event_set.sensor_mode_set = 1;             // Set the event when read transfer is done
-			//			event_set.timer_UF = 1;           // Create an event on reaching the underflow
-			//			event_set.event_null = 0;
-			//			scheduler();
-			//		}
 
 			if ((evt->data.evt_system_external_signal.extsignals & MEASURE_MODE) != 0) {
-				event_set.meas_mode_data_read = 1;             // Set the event when read transfer is done
+				event_set.meas_mode_data_read = 1;
 				event_set.event_null = 0;
 				scheduler();
 			}
 
 			if ((evt->data.evt_system_external_signal.extsignals & C02_VALUE) != 0) {
-				event_set.value_calculated = 1;             // Set the event when read transfer is done
+				event_set.value_calculated = 1;
 				event_set.event_null = 0;
 				scheduler();
 			}
@@ -586,7 +577,7 @@ void handle_gecko_event(uint32_t evt_id, struct gecko_cmd_packet *evt)
 #endif
 
 					// attend flame sensor interrupt after 5 seconds
-					gecko_cmd_hardware_set_soft_timer(5 * 32768, FLAME_TIMEOUT_FLAG, 1);
+					gecko_cmd_hardware_set_soft_timer(1 * 32768, FLAME_TIMEOUT_FLAG, 1);
 
 					LOG_INFO("Flame Sensor interrupt");
 
@@ -845,7 +836,7 @@ uint8_t* flash_mem_retrieve(uint8_t flashID) {
     if(resp) {
         LOG_INFO("flash load failed,code %x", resp);
     } else {
-        LOG_INFO("flash load success");
+//        LOG_INFO("flash load success");
     }
 
     return flash_data;
@@ -877,7 +868,7 @@ void flash_mem_store(uint8_t flashID, uint8_t *dataPtr) {
     if (resp) {
         LOG_INFO("flash store failed,code %x", resp);
     } else {
-        LOG_INFO("flash store success");
+//        LOG_INFO("flash store success");
     }
 }
 

@@ -60,11 +60,12 @@
 #define C02_VALUE				0x0080
 #define UF_FLAG					0x0010
 
-/* MACROS FOR DATA SENT VIA MODELS */
+/* MACROS FOR DATA IN MODELS */
+#define LIGHT_CONTROL_OFF       (0x00)        // ON OFF model
+#define LIGHT_CONTROL_ON        (0x01)        // ON OFF model
+
 #define PB0_STOP_ALERT          (0x01)        // LEVEL model
 #define VIBRATION_ALERT         (0x0A)        // LEVEL model
-#define LIGHT_CONTROL_ON        (0x01)        // ON OFF model
-#define LIGHT_CONTROL_OFF       (0x00)        // ON OFF model
 #define GAS_ALERT               (0x0C)        // LEVEL model
 #define FIRE_ALERT              (0x0D)        // LEVEL model
 #define NOISE_ALERT             (0x0E)        // LEVEL model
@@ -89,13 +90,13 @@ static void onoff_request(uint16_t model_id,
                           const struct mesh_generic_request *request,
                           uint32_t transition_ms,
                           uint16_t delay_ms,
-uint8_t request_flags);
+						  uint8_t request_flags);
 
 static void onoff_change(uint16_t model_id,
                          uint16_t element_index,
                          const struct mesh_generic_state *current,
                          const struct mesh_generic_state *target,
-uint32_t remaining_ms);
+						 uint32_t remaining_ms);
 
 static void level_request(uint16_t model_id,
                           uint16_t element_index,
@@ -105,13 +106,13 @@ static void level_request(uint16_t model_id,
                           const struct mesh_generic_request *request,
                           uint32_t transition_ms,
                           uint16_t delay_ms,
-uint8_t request_flags);
+						  uint8_t request_flags);
 
 static void level_change(uint16_t model_id,
                          uint16_t element_index,
                          const struct mesh_generic_state *current,
                          const struct mesh_generic_state *target,
-uint32_t remaining_ms);
+						 uint32_t remaining_ms);
 
 // PERSISTENT DATA FUNCTION DECLARATIONS
 uint8_t* flash_mem_retrieve(uint8_t flashID);

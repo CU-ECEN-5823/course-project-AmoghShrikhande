@@ -22,6 +22,9 @@
 #define LED1_port gpioPortF
 #define LED1_pin 5
 
+#define SENSOR_PORT gpioPortA
+#define SENSOR_PIN 3
+
 /* Initialize gpio pins */
 void gpioInit()
 {
@@ -32,6 +35,9 @@ void gpioInit()
 
 	// for PB0
 	GPIO_PinModeSet(PB0_PORT, PB0_PIN, gpioModeInputPull, 1);
+
+	// for Sensor enable
+	GPIO_PinModeSet(SENSOR_PORT, SENSOR_PIN, gpioModePushPull, 0);
 
 	// for PB1
 	GPIO_PinModeSet(PB1_PORT, PB1_PIN, gpioModeInputPull, 1);

@@ -31,6 +31,7 @@ int main(void)
   // Calling the scheduler to initialize it
   scheduler();
 
+
   /* Infinite loop */
   while (1) {
 	  struct gecko_cmd_packet *evt = gecko_wait_event();

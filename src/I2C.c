@@ -137,7 +137,7 @@ void hardware_id_check()
  ********************************************************************************
  *
  * Summary:
- *  Initializes the I2C
+ *  This function is used to write a valid application to the sensor
  *
  * Parameters:
  *  Void
@@ -163,11 +163,12 @@ void write_application()
 }
 
 /*******************************************************************************
- * Function Name: i2cinit
+ * Function Name: sensor_mode_set
  ********************************************************************************
  *
  * Summary:
- *  Initializes the I2C
+ *  This function is used to set the mode of the sensor to 0x01,
+ *  So that sensor generates new values after every 1 sec
  *
  * Parameters:
  *  Void
@@ -195,11 +196,11 @@ void sensor_mode_set(void)
 }
 
 /*******************************************************************************
- * Function Name: i2cinit
+ * Function Name: read_meas_mode
  ********************************************************************************
  *
  * Summary:
- *  Initializes the I2C
+ *  This function is used to read the value of meas_mode register
  *
  * Parameters:
  *  Void
@@ -227,11 +228,11 @@ void read_meas_mode(void)
 }
 
 /*******************************************************************************
- * Function Name: i2cinit
+ * Function Name: CO2_value_calculation
  ********************************************************************************
  *
  * Summary:
- *  Initializes the I2C
+ *  This function is used to fetch data from the data register of CCS811
  *
  * Parameters:
  *  Void
@@ -257,11 +258,11 @@ void CO2_value_calculation(void)
 }
 
 /*******************************************************************************
- * Function Name: i2cinit
+ * Function Name: CO2_value_display
  ********************************************************************************
  *
  * Summary:
- *  Initializes the I2C
+ *  This function calculates the value of CO2 in ppm
  *
  * Parameters:
  *  Void
@@ -280,7 +281,7 @@ void CO2_value_display(void)
 	co2_data = receive_data_store[0];
 	co2_data = ((receive_data_store[0]) << 8);
 	co2_data |= (receive_data_store[1]);
-	LOG_INFO("%d", co2_data);
+	LOG_INFO("%d ppm", co2_data);
 
 	if(co2_data > 700)
 		gecko_external_signal(GAS_FLAG);
