@@ -121,6 +121,8 @@ void hardware_id_check()
 	I2C_flag.hardware_id_checked = 1;
 	// Transfer the data to the slave
 	I2C_TransferInit(I2C0, &sequence_write_hardware_id);
+
+	LOG_INFO(" ID received before IF : %d", *(sequence_write_hardware_id.buf[1].data));
 	// Check if the value returned by the WHO AM I register matches the desired value
 	if ( *(sequence_write_hardware_id.buf[1].data) == 129 )
 	{
